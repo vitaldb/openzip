@@ -347,6 +347,43 @@ TEST(Compressor, ProgressBytesReachTotalAtEnd) {
     EXPECT_EQ(cb.last_done_, 100000u);
 }
 
+// ---------------------------------------------------------------------------
+// Fix A: callback throws — writer and partial file must be cleaned up
+// ---------------------------------------------------------------------------
+namespace {
+class ThrowOnEntryCallback : public openzip::Compressor::ProgressCallback {
+public:
+    void OnEntryStart(const std::wstring&, size_t, size_t) override {
+        throw std::runtime_error("boom");
+    }
+    void OnBytes(uint64_t, uint64_t) override {}
+    openzip::Extractor::ConflictAction OnOutputExists(const fs::path&) override {
+        return openzip::Extractor::ConflictAction::Overwrite;
+    }
+    bool ShouldCancel() override { return false; }
+    void OnComplete(openzip::Compressor::Result) override {}
+};
+}  // namespace
+
+TEST(Compressor, ThrowingCallbackCleansUpPartial) {
+    openzip::test::TempDir td;
+    fs::path src = td / L"src" / L"a.txt";
+    openzip::test::WriteFileBytes(src, {'a'});
+
+    fs::path zip = td / L"out.zip";
+    fs::path partial = zip;
+    partial += L".partial";
+
+    ThrowOnEntryCallback cb;
+    try {
+        openzip::Compressor::Compress({src}, zip, cb);
+    } catch (const std::runtime_error&) {
+        // expected — RAII guards must still have cleaned up
+    }
+    EXPECT_FALSE(fs::exists(zip));
+    EXPECT_FALSE(fs::exists(partial));
+}
+
 // CoreTests links gtest.lib (not gtest_main.lib), so this main is required.
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);

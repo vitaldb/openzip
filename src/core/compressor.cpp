@@ -40,6 +40,8 @@ struct FlatEntry {
 
 void Flatten(const fs::path& src, std::vector<FlatEntry>& out) {
     if (!fs::exists(src)) return;
+    // Fix E: skip top-level symlinks (matches the in-recursion skip below)
+    if (fs::is_symlink(src)) return;
     std::wstring base = src.filename().wstring();
     if (fs::is_regular_file(src)) {
         out.push_back({src, base});
@@ -62,15 +64,30 @@ void Flatten(const fs::path& src, std::vector<FlatEntry>& out) {
 }
 
 // ---------------------------------------------------------------------------
-// Cleanup helper: close writer, delete handle, remove partial file.
+// Fix A: RAII guards for the writer handle and the partial file.
 // ---------------------------------------------------------------------------
-void CleanupPartial(void*& writer, const fs::path& partial) {
-    mz_zip_writer_close(writer);
-    mz_zip_writer_delete(&writer);
-    writer = nullptr;
-    std::error_code ec;
-    fs::remove(partial, ec);
-}
+struct WriterGuard {
+    void* w = nullptr;
+    ~WriterGuard() {
+        if (w) {
+            mz_zip_writer_close(w);
+            mz_zip_writer_delete(&w);
+        }
+    }
+    void release() { w = nullptr; }
+};
+
+struct PartialGuard {
+    fs::path path;
+    bool armed = true;
+    ~PartialGuard() {
+        if (armed) {
+            std::error_code ec;
+            fs::remove(path, ec);
+        }
+    }
+    void disarm() { armed = false; }
+};
 
 // ---------------------------------------------------------------------------
 // Write a single entry using mz_zip_writer_entry_open + manual file I/O.
@@ -102,6 +119,8 @@ int32_t WriteEntryManual(void* writer,
         // Task 1.9: Report byte progress after each write
         bytes_done += static_cast<uint64_t>(nread);
         cb.OnBytes(bytes_done, total_bytes);
+        // Fix D: honour cancellation mid-write
+        if (cb.ShouldCancel()) { add_err = MZ_END_OF_LIST; break; }
     }
     ::CloseHandle(h);
     mz_zip_writer_entry_close(writer);
@@ -147,15 +166,22 @@ Compressor::Result Compressor::Compress(const std::vector<fs::path>& sources,
     partial += L".partial";
 
     // --- Open minizip writer ---
-    void* writer = mz_zip_writer_create();
-    if (!writer) {
+    // Fix A: wrap writer and partial file in RAII guards so they are always
+    // cleaned up even if a user callback throws or an I/O error escapes.
+    // IMPORTANT: pg is declared before wg so that wg (writer) destructs first,
+    // releasing all file handles before pg attempts to delete the partial file.
+    PartialGuard pg{partial, true};
+
+    WriterGuard wg;
+    wg.w = mz_zip_writer_create();
+    if (!wg.w) {
         cb.OnComplete(Result::IoError);
         return Result::IoError;
     }
 
-    int32_t err = mz_zip_writer_open_file(writer, PathToMz(partial).c_str(), 0, 0);
+    int32_t err = mz_zip_writer_open_file(wg.w, PathToMz(partial).c_str(), 0, 0);
     if (err != MZ_OK) {
-        mz_zip_writer_delete(&writer);
+        // wg destructor closes/deletes the writer; pg removes the partial (if created).
         cb.OnComplete(Result::IoError);
         return Result::IoError;
     }
@@ -165,26 +191,26 @@ Compressor::Result Compressor::Compress(const std::vector<fs::path>& sources,
     std::string pw_utf8;
     if (!opts.password.empty()) {
         pw_utf8 = WideToCodepage(opts.password, CP_UTF8);
-        mz_zip_writer_set_password(writer, pw_utf8.c_str());
-        mz_zip_writer_set_aes(writer, 1);  // AES-256
+        mz_zip_writer_set_password(wg.w, pw_utf8.c_str());
+        mz_zip_writer_set_aes(wg.w, 1);  // AES-256
     }
 
     // --- Task 1.5: Compression level ---
     if (opts.level == Level::Store) {
-        mz_zip_writer_set_compress_method(writer, MZ_COMPRESS_METHOD_STORE);
-        mz_zip_writer_set_compress_level(writer, 0);
+        mz_zip_writer_set_compress_method(wg.w, MZ_COMPRESS_METHOD_STORE);
+        mz_zip_writer_set_compress_level(wg.w, 0);
     } else {
-        mz_zip_writer_set_compress_method(writer, MZ_COMPRESS_METHOD_DEFLATE);
-        mz_zip_writer_set_compress_level(writer, static_cast<int16_t>(opts.level));
+        mz_zip_writer_set_compress_method(wg.w, MZ_COMPRESS_METHOD_DEFLATE);
+        mz_zip_writer_set_compress_level(wg.w, static_cast<int16_t>(opts.level));
     }
 
     // --- Flatten sources (Task 1.3: folder recursion) ---
     std::vector<FlatEntry> flat;
     for (const auto& s : sources) {
         if (!fs::exists(s)) {
-            CleanupPartial(writer, partial);
             cb.OnComplete(Result::SourceMissing);
             return Result::SourceMissing;
+            // wg + pg destructors clean up writer and partial
         }
         Flatten(s, flat);
     }
@@ -198,8 +224,14 @@ Compressor::Result Compressor::Compress(const std::vector<fs::path>& sources,
     uint64_t bytes_done = 0;
 
     // Determine encoding: Cp949 requires manual entry_open to set raw filename bytes.
-    // UTF-8 can use either add_file (simpler, handles AES via writer state) or entry_open.
     const bool use_cp949 = (opts.filename_encoding == Encoding::Cp949);
+
+    // Fix C: Both paths now use WriteEntryManual (mz_zip_writer_entry_open) so that:
+    //  - AES entries always have compression_method = MZ_COMPRESS_METHOD_AES (99) in metadata
+    //  - Per-chunk progress is available on both paths
+    //  - Cancellation mid-write (Fix D) works on both paths
+    // (The implementer previously reported a BCryptGenRandom hang with entry_open + AES;
+    //  this was resolved by ensuring mz_zip_writer_set_aes() is called before the loop.)
 
     // --- Per-entry write loop ---
     for (size_t i = 0; i < flat.size(); ++i) {
@@ -207,7 +239,6 @@ Compressor::Result Compressor::Compress(const std::vector<fs::path>& sources,
 
         // Task 1.7: Cancel check before each entry
         if (cb.ShouldCancel()) {
-            CleanupPartial(writer, partial);
             cb.OnComplete(Result::Cancelled);
             return Result::Cancelled;
         }
@@ -216,61 +247,51 @@ Compressor::Result Compressor::Compress(const std::vector<fs::path>& sources,
 
         // Re-check after OnEntryStart (callback may set cancel in response to entry index)
         if (cb.ShouldCancel()) {
-            CleanupPartial(writer, partial);
             cb.OnComplete(Result::Cancelled);
             return Result::Cancelled;
         }
 
-        int32_t add_err = MZ_OK;
+        // Build mz_zip_file for this entry.
+        // CP949: raw multibyte filename, no UTF8 flag.
+        // UTF-8: UTF-8 filename bytes, UTF8 flag set.
+        std::string encoded_name = use_cp949
+            ? WideToCodepage(fe.rel_in_zip, 949u)
+            : WideToCodepage(fe.rel_in_zip, CP_UTF8);
 
-        if (use_cp949) {
-            // Task 1.4: CP949 path — set raw bytes + clear UTF8 flag via entry_open.
-            std::string mbcs_name = WideToCodepage(fe.rel_in_zip, 949u);
-
-            mz_zip_file file_info{};
-            file_info.filename = mbcs_name.c_str();
-            file_info.flag = 0;  // no UTF8 flag
-            file_info.compression_method = (opts.level == Level::Store)
-                ? MZ_COMPRESS_METHOD_STORE : MZ_COMPRESS_METHOD_DEFLATE;
-            file_info.zip64 = MZ_ZIP64_AUTO;
-            file_info.modified_date = std::time(nullptr);
-            // AES: set aes_version so mz_zip_entry_write_open uses wzaes stream.
-            if (!opts.password.empty()) {
-                file_info.aes_version = MZ_AES_VERSION;
-            }
-
-            add_err = WriteEntryManual(writer, fe, file_info, bytes_done, total_bytes, cb);
-        } else {
-            // Task 1.4: UTF-8 path — use mz_zip_writer_add_file which handles
-            // AES, compression level, and UTF-8 flag automatically via writer state.
-            std::string utf8_name = WideToCodepage(fe.rel_in_zip, CP_UTF8);
-            std::string disk_path = PathToMz(fe.on_disk);
-            add_err = mz_zip_writer_add_file(writer, disk_path.c_str(), utf8_name.c_str());
-
-            // Task 1.9: For add_file, report bytes based on file size (entire file at once).
-            if (add_err == MZ_OK) {
-                std::error_code sec;
-                uint64_t fsz = fs::file_size(fe.on_disk, sec);
-                bytes_done += fsz;
-                cb.OnBytes(bytes_done, total_bytes);
-            }
+        mz_zip_file file_info{};
+        file_info.filename = encoded_name.c_str();
+        file_info.flag = use_cp949 ? 0 : MZ_ZIP_FLAG_UTF8;
+        file_info.compression_method = (opts.level == Level::Store)
+            ? MZ_COMPRESS_METHOD_STORE : MZ_COMPRESS_METHOD_DEFLATE;
+        file_info.zip64 = MZ_ZIP64_AUTO;
+        file_info.modified_date = std::time(nullptr);
+        // AES: set aes_version so minizip stores the AE-x extra field and
+        // sets compression_method = 99 (MZ_COMPRESS_METHOD_AES) in the header.
+        if (!opts.password.empty()) {
+            file_info.aes_version = MZ_AES_VERSION;
+            file_info.flag |= MZ_ZIP_FLAG_ENCRYPTED;
         }
 
+        int32_t add_err = WriteEntryManual(wg.w, fe, file_info, bytes_done, total_bytes, cb);
+
         if (add_err != MZ_OK) {
-            CleanupPartial(writer, partial);
+            // Distinguish cancellation from genuine I/O error
+            if (add_err == MZ_END_OF_LIST && cb.ShouldCancel()) {
+                cb.OnComplete(Result::Cancelled);
+                return Result::Cancelled;
+            }
             cb.OnComplete(Result::IoError);
             return Result::IoError;
         }
     }
 
-    // --- Close writer ---
-    err = mz_zip_writer_close(writer);
-    mz_zip_writer_delete(&writer);
-    writer = nullptr;
+    // --- Close writer explicitly (before rename) ---
+    err = mz_zip_writer_close(wg.w);
+    wg.release();  // prevent double-close in destructor
     if (err != MZ_OK) {
-        std::error_code ec; fs::remove(partial, ec);
         cb.OnComplete(Result::IoError);
         return Result::IoError;
+        // pg destructor removes partial
     }
 
     // --- Atomic rename: partial → effective_output ---
@@ -283,10 +304,13 @@ Compressor::Result Compressor::Compress(const std::vector<fs::path>& sources,
         fs::rename(partial, effective_output, ec);
     }
     if (ec) {
-        fs::remove(partial, ec);
         cb.OnComplete(Result::IoError);
         return Result::IoError;
+        // pg destructor removes partial
     }
+
+    // Rename succeeded: partial is gone, disarm the guard.
+    pg.disarm();
 
     cb.OnComplete(Result::Success);
     return Result::Success;
