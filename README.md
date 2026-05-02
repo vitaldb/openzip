@@ -15,9 +15,19 @@ A minimal, fast ZIP utility for Windows with native Explorer context-menu integr
 - **Safe** — Zip-slip, symlink, decompression-bomb, and Windows reserved-name protections built in. Compression writes atomically (`.partial` → rename) so a cancel or crash never leaves a half-written archive.
 - **Light** — ZIP only; no preview UI, no telemetry, no auto-update.
 
-## Install
+## Download
 
-Microsoft Store: https://www.microsoft.com/store/apps/9P09P5W5DPK0 *(pending review)*
+- **Microsoft Store** (recommended; auto-updates, signed): https://www.microsoft.com/store/apps/9P09P5W5DPK0 *(v0.3.0 pending review)*
+- **GitHub Releases** (sideload `.msix`): https://github.com/vitaldb/openzip/releases/latest
+- **Project page**: https://vitaldb.github.io/openzip
+
+Sideload install (Developer Mode on Windows required):
+
+```powershell
+Add-AppxPackage .\OpenZip_0.3.0.msix
+```
+
+System requirements: Windows 10 1903 (build 18362) or later, or Windows 11. x64 only.
 
 ## Screenshots
 
@@ -67,6 +77,18 @@ To run the unit tests:
 ```powershell
 .\x64\Debug\CoreTests.exe
 ```
+
+## Releasing
+
+Maintainers cut a release with one command (requires the [GitHub CLI](https://cli.github.com)):
+
+```powershell
+python tools\deploy.py 0.3.0
+```
+
+This builds Release|x64, packages the MSIX, tags `v0.3.0`, creates the GitHub
+release, and uploads the `.msix` as the release asset. CI is intentionally not
+used — see `tools/deploy.py` for rationale.
 
 ## Architecture
 
