@@ -48,7 +48,40 @@ CommandLine ParseCommandLine(const wchar_t* cmdline) {
             return argv[++i];
         };
 
-        if (a == L"--extract") {
+        // ── Shared / top-level flags ───────────────────────────────
+        if (a == L"--help" || a == L"-h" || a == L"/?") {
+            c.show_help = true;
+
+        // ── Compress flags ─────────────────────────────────────────
+        } else if (a == L"--compress") {
+            c.kind = JobKind::Compress;
+        } else if (a == L"--output") {
+            const wchar_t* v = need_value(L"--output"); if (!v) break;
+            c.compress_output = v;
+        } else if (a == L"--mode") {
+            const wchar_t* v = need_value(L"--mode"); if (!v) break;
+            std::wstring mv = v;
+            if      (mv == L"bundle") c.compress_mode = CompressMode::Bundle;
+            else if (mv == L"each")   c.compress_mode = CompressMode::Each;
+            else if (mv == L"prompt") c.compress_mode = CompressMode::Prompt;
+            else { c.valid = false; c.error = L"unknown --mode value: " + mv; break; }
+        } else if (a == L"--level") {
+            const wchar_t* v = need_value(L"--level"); if (!v) break;
+            std::wstring lv = v;
+            if      (lv == L"store")  c.compress_level = 0;
+            else if (lv == L"fast")   c.compress_level = 1;
+            else if (lv == L"normal") c.compress_level = 6;
+            else if (lv == L"max")    c.compress_level = 9;
+            else { c.valid = false; c.error = L"unknown --level value: " + lv; break; }
+        } else if (a == L"--encoding") {
+            const wchar_t* v = need_value(L"--encoding"); if (!v) break;
+            c.compress_encoding = v;
+        } else if (a == L"--item") {
+            const wchar_t* v = need_value(L"--item"); if (!v) break;
+            c.compress_items.emplace_back(v);
+
+        // ── Extract flags ──────────────────────────────────────────
+        } else if (a == L"--extract") {
             const wchar_t* v = need_value(L"--extract");
             if (!v) break;
             c.zip_path = v;
@@ -69,17 +102,17 @@ CommandLine ParseCommandLine(const wchar_t* cmdline) {
             mode = Mode::Here;
         } else if (a == L"--folder") {
             mode = Mode::Folder;
-        } else if (a == L"--help" || a == L"-h" || a == L"/?") {
-            c.show_help = true;
+
+        // ── Unknown flag or positional arg ─────────────────────────
         } else if (!a.empty() && a.front() == L'-') {
             c.valid = false;
             c.error = L"unknown option: " + a;
             break;
-        } else if (c.zip_path.empty()) {
+        } else if (c.kind == JobKind::Extract && c.zip_path.empty()) {
             // Positional argument: the zip file (e.g. file-association double-click).
             c.zip_path = a;
         } else {
-            // Extra positional → error (use --target for output dir).
+            // Extra positional → error.
             c.valid = false;
             c.error = L"unexpected argument: " + a;
             break;
@@ -89,13 +122,31 @@ CommandLine ParseCommandLine(const wchar_t* cmdline) {
 
     if (c.show_help || !c.valid) return c;
 
+    // ── Compress post-parse validation ─────────────────────────────
+    if (c.kind == JobKind::Compress) {
+        if (c.compress_items.empty()) {
+            c.valid = false;
+            c.error = L"--compress requires at least one --item";
+            return c;
+        }
+        if (c.compress_output.empty() && c.compress_mode != CompressMode::Each) {
+            c.valid = false;
+            c.error = L"--compress requires --output (or --mode each)";
+            return c;
+        }
+        if (!c.compress_output.empty())
+            c.compress_output = fs::absolute(c.compress_output);
+        return c;
+    }
+
+    // ── Extract post-parse validation ──────────────────────────────
     if (c.zip_path.empty()) {
         c.valid = false;
         c.error = L"no zip file specified (use --extract <path> or pass a path positionally)";
         return c;
     }
 
-    c.zip_path = fs::absolute(c.zip_path);
+    c.zip_path   = fs::absolute(c.zip_path);
     c.target_dir = ResolveTarget(c.zip_path, explicit_target, mode);
     return c;
 }
