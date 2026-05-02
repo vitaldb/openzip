@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -40,20 +41,28 @@ private:
     fs::path path_;
 };
 
-// Write `bytes` into `p`, creating parent dirs as needed.
+// Throw on I/O failure so gtest reports a clear test failure rather than a
+// downstream assertion mismatch (or, in ReadFileBytes' case, a bad_alloc when
+// tellg() returns -1 for a missing file and the cast wraps to ~16 EiB).
 inline void WriteFileBytes(const fs::path& p, const std::vector<uint8_t>& bytes) {
     fs::create_directories(p.parent_path());
     std::ofstream o(p, std::ios::binary);
+    if (!o) throw std::runtime_error("WriteFileBytes: cannot open " + p.string());
     o.write(reinterpret_cast<const char*>(bytes.data()),
             static_cast<std::streamsize>(bytes.size()));
+    if (!o) throw std::runtime_error("WriteFileBytes: write failed for " + p.string());
 }
 
 inline std::vector<uint8_t> ReadFileBytes(const fs::path& p) {
     std::ifstream i(p, std::ios::binary | std::ios::ate);
-    auto size = static_cast<size_t>(i.tellg());
+    if (!i) throw std::runtime_error("ReadFileBytes: cannot open " + p.string());
+    auto raw = i.tellg();
+    if (raw < 0) throw std::runtime_error("ReadFileBytes: tellg failed for " + p.string());
+    auto size = static_cast<size_t>(raw);
     i.seekg(0);
     std::vector<uint8_t> out(size);
     i.read(reinterpret_cast<char*>(out.data()), static_cast<std::streamsize>(size));
+    if (!i) throw std::runtime_error("ReadFileBytes: read failed for " + p.string());
     return out;
 }
 

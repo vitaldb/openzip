@@ -11,6 +11,8 @@ TEST(SmokeTest, TempDirRoundtrip) {
     EXPECT_EQ(got[1], 'i');
 }
 
+// CoreTests links gtest.lib (not gtest_main.lib), so this main is required.
+// Future test .cpp files added to CoreTests must NOT define their own main.
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
