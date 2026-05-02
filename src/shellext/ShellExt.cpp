@@ -123,8 +123,11 @@ std::wstring StemOf(const std::wstring& zip_path) {
 }
 
 bool IsKoreanLocale() {
-    LANGID lang = ::GetUserDefaultUILanguage();
-    return PRIMARYLANGID(lang) == LANG_KOREAN;
+    // Prefer Korean labels if either MUI or regional locale is Korean
+    // (common case: English MUI Windows + ko-KR regional settings).
+    LANGID mui = ::GetUserDefaultUILanguage();
+    LANGID loc = LANGIDFROMLCID(::GetUserDefaultLCID());
+    return PRIMARYLANGID(mui) == LANG_KOREAN || PRIMARYLANGID(loc) == LANG_KOREAN;
 }
 
 // Localized menu title for the "Extract to <name>\" verb.

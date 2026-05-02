@@ -21,17 +21,28 @@ void CPasswordDialog::DoDataExchange(CDataExchange* pDX) {
 BOOL CPasswordDialog::OnInitDialog() {
     CDialogEx::OnInitDialog();
 
+    CString s;
+    s.LoadString(IDS_DIALOG_PASSWORD_TITLE);  SetWindowText(s);
+    s.LoadString(IDS_LABEL_PASSWORD_ENTER);   SetDlgItemText(IDC_LABEL_PASSWORD_ENTER, s);
+    s.LoadString(IDS_BUTTON_OK);              SetDlgItemText(IDOK, s);
+    s.LoadString(IDS_BUTTON_CANCEL);          SetDlgItemText(IDCANCEL, s);
+
     CString prompt;
     if (entry_name_.IsEmpty()) {
-        prompt.Format(L"Archive '%s' is password-protected.", archive_name_.GetString());
+        CString fmt;
+        fmt.LoadString(IDS_LABEL_PASSWORD_ENC_FOR);
+        prompt.Format(fmt, archive_name_.GetString());
     } else {
-        prompt.Format(L"'%s' inside '%s' is encrypted.",
-                      entry_name_.GetString(), archive_name_.GetString());
+        CString fmt;
+        fmt.LoadString(IDS_LABEL_PASSWORD_ENC_ENTRY);
+        prompt.Format(fmt, entry_name_.GetString(), archive_name_.GetString());
     }
     SetDlgItemText(IDC_LABEL_PASSWORD_PROMPT, prompt);
 
     if (was_wrong_) {
-        SetDlgItemText(IDC_LABEL_PASSWORD_HINT, L"Wrong password. Try again or cancel.");
+        CString hint;
+        hint.LoadString(IDS_LABEL_PASSWORD_HINT_WRONG);
+        SetDlgItemText(IDC_LABEL_PASSWORD_HINT, hint);
     } else {
         SetDlgItemText(IDC_LABEL_PASSWORD_HINT, L"");
     }

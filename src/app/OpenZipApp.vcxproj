@@ -94,6 +94,7 @@
     <ClInclude Include="ExtractDialog.h" />
     <ClInclude Include="PasswordDialog.h" />
     <ClInclude Include="ConflictDialog.h" />
+    <ClInclude Include="SingleInstance.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -104,6 +105,7 @@
     <ClCompile Include="ExtractDialog.cpp" />
     <ClCompile Include="PasswordDialog.cpp" />
     <ClCompile Include="ConflictDialog.cpp" />
+    <ClCompile Include="SingleInstance.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="OpenZipApp.rc" />

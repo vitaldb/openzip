@@ -17,6 +17,32 @@ A minimal, fast ZIP extractor for Windows 11 with native Explorer context-menu i
 
 Microsoft Store: https://www.microsoft.com/store/apps/9P09P5W5DPK0 *(pending review)*
 
+## Screenshots
+
+### Modern context menu
+
+Right-click any `.zip` in File Explorer → **OpenZip** appears in the modern menu (no "Show more options" needed):
+
+![Context menu](docs/screenshots/context-menu.png)
+
+### Progress dialog (Korean UI on Korean systems)
+
+The dialog auto-localizes when the user's MUI or regional locale is Korean:
+
+![Progress](docs/screenshots/progress.png)
+
+### Password prompt (ZipCrypto / AES-256)
+
+Encrypted archives prompt for the password before the first encrypted entry:
+
+![Password](docs/screenshots/password.png)
+
+### Conflict resolution
+
+If the destination already has a file, choose Overwrite / Skip / Rename / Cancel — with optional "apply to all":
+
+![Conflict](docs/screenshots/conflict.png)
+
 ## Build from source
 
 Prerequisites:

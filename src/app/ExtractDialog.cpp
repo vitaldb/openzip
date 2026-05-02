@@ -26,6 +26,12 @@ void CExtractDialog::DoDataExchange(CDataExchange* pDX) {
 BOOL CExtractDialog::OnInitDialog() {
     CDialogEx::OnInitDialog();
 
+    CString s;
+    s.LoadString(IDS_DIALOG_EXTRACT_TITLE);  SetWindowText(s);
+    s.LoadString(IDS_LABEL_ARCHIVE);         SetDlgItemText(IDC_LABEL_ARCHIVE_HEADING, s);
+    s.LoadString(IDS_LABEL_CURRENT);         SetDlgItemText(IDC_LABEL_CURRENT_HEADING, s);
+    s.LoadString(IDS_BUTTON_CANCEL);         SetDlgItemText(IDCANCEL, s);
+
     SetDlgItemText(IDC_LABEL_ARCHIVE, cmd_.zip_path.wstring().c_str());
     SetDlgItemText(IDC_LABEL_CURRENT_FILE, L"");
     SetDlgItemText(IDC_LABEL_PERCENT, L"0%");
@@ -56,7 +62,9 @@ BOOL CExtractDialog::OnInitDialog() {
 
 void CExtractDialog::OnCancel() {
     cancel_requested_ = true;
-    SetDlgItemText(IDC_LABEL_CURRENT_FILE, L"Cancelling...");
+    CString s;
+    s.LoadString(IDS_LABEL_CANCELLING);
+    SetDlgItemText(IDC_LABEL_CURRENT_FILE, s);
     GetDlgItem(IDCANCEL)->EnableWindow(FALSE);
     // The worker thread will observe the flag, return Result::Cancelled,
     // and post WM_OPENZIP_COMPLETE which closes the dialog.

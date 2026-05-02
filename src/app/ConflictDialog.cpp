@@ -19,6 +19,16 @@ void CConflictDialog::DoDataExchange(CDataExchange* pDX) {
 
 BOOL CConflictDialog::OnInitDialog() {
     CDialogEx::OnInitDialog();
+
+    CString s;
+    s.LoadString(IDS_DIALOG_CONFLICT_TITLE);  SetWindowText(s);
+    s.LoadString(IDS_LABEL_CONFLICT);         SetDlgItemText(IDC_LABEL_CONFLICT_HEADING, s);
+    s.LoadString(IDS_CHECK_REMEMBER);         SetDlgItemText(IDC_CHECK_REMEMBER, s);
+    s.LoadString(IDS_BUTTON_OVERWRITE);       SetDlgItemText(IDC_BTN_OVERWRITE, s);
+    s.LoadString(IDS_BUTTON_SKIP);            SetDlgItemText(IDC_BTN_SKIP, s);
+    s.LoadString(IDS_BUTTON_RENAME);          SetDlgItemText(IDC_BTN_RENAME, s);
+    s.LoadString(IDS_BUTTON_CANCEL);          SetDlgItemText(IDCANCEL, s);
+
     SetDlgItemText(IDC_LABEL_CONFLICT_PATH, dest_path_);
     GetDlgItem(IDC_BTN_SKIP)->SetFocus();  // default = Skip per plan §12
     return FALSE;
