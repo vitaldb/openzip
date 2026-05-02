@@ -11,8 +11,10 @@
 #include <Shlwapi.h>
 #include <combaseapi.h>
 #include <cstdarg>
+#include <filesystem>
 #include <new>
 #include <string>
+#include <vector>
 
 #include "resource.h"
 
@@ -79,12 +81,29 @@ constexpr GUID kCLSID_ExtractToFolder = {
     0xA8F3C7E4, 0x1B2D, 0x4F5E,
     {0x9C, 0x8A, 0x3B, 0x6D, 0x2E, 0x5F, 0x1A, 0x0E}};
 
+// Compress verb family — mirrored in AppxManifest (added in v0.3).
+constexpr GUID kCLSID_CompressParent = {
+    0xA8F3C7E4, 0x1B2D, 0x4F5E,
+    {0x9C, 0x8A, 0x3B, 0x6D, 0x2E, 0x5F, 0x1B, 0x00}};
+constexpr GUID kCLSID_CompressBundle = {
+    0xA8F3C7E4, 0x1B2D, 0x4F5E,
+    {0x9C, 0x8A, 0x3B, 0x6D, 0x2E, 0x5F, 0x1B, 0x01}};
+constexpr GUID kCLSID_CompressEach = {
+    0xA8F3C7E4, 0x1B2D, 0x4F5E,
+    {0x9C, 0x8A, 0x3B, 0x6D, 0x2E, 0x5F, 0x1B, 0x02}};
+constexpr GUID kCLSID_CompressPrompt = {
+    0xA8F3C7E4, 0x1B2D, 0x4F5E,
+    {0x9C, 0x8A, 0x3B, 0x6D, 0x2E, 0x5F, 0x1B, 0x03}};
+
 LONG g_dll_ref_count = 0;
 HMODULE g_module = nullptr;
 
 // ---------------------------------------------------------------------------
 
-enum class CmdKind { Parent, Here, Folder };
+enum class CmdKind {
+    Parent, Here, Folder,
+    CompressParent, CompressBundle, CompressEach, CompressPrompt,
+};
 
 // Get the full path of the first selected item, or empty on failure.
 std::wstring FirstSelectedPath(IShellItemArray* items) {
@@ -143,6 +162,54 @@ std::wstring TitleExtractTo(const std::wstring& zip_path) {
 
 const wchar_t* TitleExtractHere() {
     return IsKoreanLocale() ? L"여기에 풀기" : L"Extract Here";
+}
+
+// ---------------------------------------------------------------------------
+// Compress verb title helpers
+
+const wchar_t* TitleCompressParent() { return L"OpenZip"; }
+
+const wchar_t* TitleCompressEach() {
+    return IsKoreanLocale() ? L"각각 압축" : L"Compress each separately";
+}
+
+const wchar_t* TitleCompressPrompt() {
+    return IsKoreanLocale() ? L"압축 옵션…" : L"Compress with options…";
+}
+
+std::wstring TitleCompressBundle(IShellItemArray* items) {
+    if (!items) return IsKoreanLocale() ? L"압축" : L"Compress";
+    DWORD count = 0;
+    items->GetCount(&count);
+    std::wstring base_name;
+    if (count == 1) {
+        IShellItem* it = nullptr;
+        if (SUCCEEDED(items->GetItemAt(0, &it)) && it) {
+            LPWSTR p = nullptr;
+            if (SUCCEEDED(it->GetDisplayName(SIGDN_FILESYSPATH, &p)) && p) {
+                std::wstring full(p);
+                ::CoTaskMemFree(p);
+                // Use filename() for directories (stem of "C:/foo/" is empty).
+                std::filesystem::path fsp(full);
+                base_name = fsp.stem().wstring();
+                if (base_name.empty()) base_name = fsp.filename().wstring();
+            }
+            it->Release();
+        }
+    } else {
+        IShellItem* it = nullptr;
+        if (SUCCEEDED(items->GetItemAt(0, &it)) && it) {
+            LPWSTR p = nullptr;
+            if (SUCCEEDED(it->GetDisplayName(SIGDN_FILESYSPATH, &p)) && p) {
+                base_name = std::filesystem::path(p).parent_path().filename().wstring();
+                ::CoTaskMemFree(p);
+            }
+            it->Release();
+        }
+    }
+    if (base_name.empty()) base_name = L"Archive";
+    if (IsKoreanLocale()) return L"\"" + base_name + L".zip\"으로 압축";
+    return L"Compress to \"" + base_name + L".zip\"";
 }
 
 HRESULT CopyToTaskMem(const wchar_t* src, LPWSTR* out) {
