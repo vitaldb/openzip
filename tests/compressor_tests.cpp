@@ -206,6 +206,24 @@ TEST(Compressor, AesPasswordRoundtrip) {
     ASSERT_EQ(entries.size(), 1u);
     EXPECT_TRUE(entries[0].needs_password);
 
+    // Fix B: verify AES-256 (not ZipCrypto) is used in the stored entry.
+    // Note: minizip-ng's mz_zip_reader_entry_get_info returns the actual
+    // compression method from the AES extra field (e.g. DEFLATE=8), NOT 99.
+    // The reliable AES indicator is aes_version != 0.
+    {
+        void* reader = mz_zip_reader_create();
+        ASSERT_EQ(mz_zip_reader_open_file(reader,
+            openzip::test::WideToUtf8(zip.wstring()).c_str()), MZ_OK);
+        ASSERT_EQ(mz_zip_reader_goto_first_entry(reader), MZ_OK);
+        mz_zip_file* info = nullptr;
+        ASSERT_EQ(mz_zip_reader_entry_get_info(reader, &info), MZ_OK);
+        // aes_version != 0 proves AES (not ZipCrypto) was used
+        EXPECT_EQ(info->aes_version, MZ_AES_VERSION);
+        // compression_method here is the actual inner method (DEFLATE=8), not 99
+        EXPECT_EQ(info->compression_method, MZ_COMPRESS_METHOD_DEFLATE);
+        mz_zip_reader_delete(&reader);
+    }
+
     fs::path out_dir = td / L"out";
     FixedPasswordCallback cb_r(L"P@ssw0rd!");
     auto er = openzip::Extractor::Extract(zip, out_dir, cb_r);
