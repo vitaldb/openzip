@@ -402,6 +402,46 @@ TEST(Compressor, ThrowingCallbackCleansUpPartial) {
     EXPECT_FALSE(fs::exists(partial));
 }
 
+// ---------------------------------------------------------------------------
+// Fix D: cancel mid-write — Result::Cancelled, partial absent
+// ---------------------------------------------------------------------------
+namespace {
+class CancelAfterFirstBytesCallback : public openzip::Compressor::ProgressCallback {
+public:
+    void OnEntryStart(const std::wstring&, size_t, size_t) override {}
+    void OnBytes(uint64_t, uint64_t) override { cancel_ = true; }
+    openzip::Extractor::ConflictAction OnOutputExists(const fs::path&) override {
+        return openzip::Extractor::ConflictAction::Overwrite;
+    }
+    bool ShouldCancel() override { return cancel_; }
+    void OnComplete(openzip::Compressor::Result r) override { result_ = r; }
+    openzip::Compressor::Result result_ = openzip::Compressor::Result::Success;
+    bool cancel_ = false;
+};
+}  // namespace
+
+TEST(Compressor, CancelMidWriteDeletesPartial) {
+    openzip::test::TempDir td;
+    // 5 MB source — large enough to need multiple 64 KB reads via manual path
+    std::vector<uint8_t> big(5 * 1024 * 1024, 0xCC);
+    fs::path src = td / L"src" / L"big.bin";
+    openzip::test::WriteFileBytes(src, big);
+
+    fs::path zip = td / L"out.zip";
+    fs::path partial = zip;
+    partial += L".partial";
+
+    // Use CP949 path so WriteEntryManual's cancel check fires
+    openzip::Compressor::Options opts;
+    opts.filename_encoding = openzip::Compressor::Encoding::Cp949;
+
+    CancelAfterFirstBytesCallback cb;
+    auto r = openzip::Compressor::Compress({src}, zip, cb, opts);
+    EXPECT_EQ(r, openzip::Compressor::Result::Cancelled);
+    EXPECT_FALSE(fs::exists(zip));
+    EXPECT_FALSE(fs::exists(partial));
+}
+
 // CoreTests links gtest.lib (not gtest_main.lib), so this main is required.
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
