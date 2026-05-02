@@ -31,28 +31,30 @@ System requirements: Windows 10 1903 (build 18362) or later, or Windows 11. x64 
 
 ## Screenshots
 
-### Modern context menu
+### Archive browser
 
-Right-click any `.zip` in File Explorer → **OpenZip** appears in the modern menu (no "Show more options" needed):
+Double-click a `.zip` to browse its contents. Folders use the system folder icon, files pick by extension. Double-click a folder to drill in, or select rows + "Extract" to a chosen destination — single files or full subtrees:
 
-![Context menu](docs/screenshots/context-menu.png)
+![Archive browser](docs/screenshots/archive-browser.png)
 
-### Progress dialog (Korean UI on Korean systems)
+### Compress dialogs
 
-The dialog auto-localizes when the user's MUI or regional locale is Korean:
+`Compress with options…` (level, password, output path) and the progress dialog while a 200 MB batch runs:
 
-![Progress](docs/screenshots/progress.png)
+![Compress options](docs/screenshots/compress-options.png)
+![Compress progress](docs/screenshots/compress-progress.png)
 
-### Password prompt (ZipCrypto / AES-256)
+### Extract progress
 
-Encrypted archives prompt for the password before the first encrypted entry:
+Korean filenames decoded intact (CP949/UTF-8 auto-detected):
+
+![Extract progress](docs/screenshots/progress.png)
+
+### Password and conflict resolution
+
+Password prompt before the first encrypted entry; conflict dialog with Overwrite / Skip / Rename / Cancel + "apply to all":
 
 ![Password](docs/screenshots/password.png)
-
-### Conflict resolution
-
-If the destination already has a file, choose Overwrite / Skip / Rename / Cancel — with optional "apply to all":
-
 ![Conflict](docs/screenshots/conflict.png)
 
 ## Build from source
