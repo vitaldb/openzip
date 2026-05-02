@@ -58,11 +58,23 @@
         <!-- COM server for shell extension -->
         <com:Extension Category="windows.comServer">
           <com:ComServer>
+            <!-- Modern shell ext (out-of-process surrogate) -->
             <com:SurrogateServer DisplayName="OpenZip Shell Extension">
+              <!-- Extract parent CLSID (existing) -->
               <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C"
                          Path="OpenZipShellExt.dll"
                          ThreadingModel="STA" />
+              <!-- Compress parent CLSID (Phase 4) -->
+              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00"
+                         Path="OpenZipShellExt.dll"
+                         ThreadingModel="STA" />
             </com:SurrogateServer>
+            <!-- Classic in-process shell ext for Win10 (Phase 5) -->
+            <com:InProcessServer>
+              <com:Path>OpenZipShellExtClassic.dll</com:Path>
+              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000"
+                         ThreadingModel="Apartment" />
+            </com:InProcessServer>
           </com:ComServer>
         </com:Extension>
 
