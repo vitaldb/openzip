@@ -67,11 +67,13 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="compressor.h" />
     <ClInclude Include="extractor.h" />
     <ClInclude Include="filename_decoder.h" />
     <ClInclude Include="path_validator.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="compressor.cpp" />
     <ClCompile Include="extractor.cpp" />
     <ClCompile Include="filename_decoder.cpp" />
     <ClCompile Include="path_validator.cpp" />

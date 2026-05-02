@@ -66,4 +66,14 @@ inline std::vector<uint8_t> ReadFileBytes(const fs::path& p) {
     return out;
 }
 
+inline std::string WideToUtf8(const std::wstring& w) {
+    if (w.empty()) return {};
+    int len = ::WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
+                                    nullptr, 0, nullptr, nullptr);
+    std::string out(static_cast<size_t>(len), '\0');
+    ::WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
+                          out.data(), len, nullptr, nullptr);
+    return out;
+}
+
 }  // namespace openzip::test
