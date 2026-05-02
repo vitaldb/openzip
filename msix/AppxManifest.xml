@@ -11,7 +11,7 @@
 
   <Identity Name="Hyung-ChulLee.OpenZip"
             Publisher="CN=F654AA56-4E26-4CE5-B9F5-949930D6F0EE"
-            Version="0.2.0.0"
+            Version="0.3.0.0"
             ProcessorArchitecture="x64" />
 
   <Properties>
@@ -22,7 +22,7 @@
   </Properties>
 
   <Dependencies>
-    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.18362.0" MaxVersionTested="10.0.26100.0" />
   </Dependencies>
 
   <Resources>
