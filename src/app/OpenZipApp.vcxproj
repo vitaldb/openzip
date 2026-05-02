@@ -97,6 +97,7 @@
     <ClInclude Include="SingleInstance.h" />
     <ClInclude Include="CompressOptionsDialog.h" />
     <ClInclude Include="CompressDialog.h" />
+    <ClInclude Include="dark_theme.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -110,6 +111,7 @@
     <ClCompile Include="SingleInstance.cpp" />
     <ClCompile Include="CompressOptionsDialog.cpp" />
     <ClCompile Include="CompressDialog.cpp" />
+    <ClCompile Include="dark_theme.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="OpenZipApp.rc" />
