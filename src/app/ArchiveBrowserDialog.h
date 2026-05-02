@@ -9,7 +9,7 @@
 #include <vector>
 
 // CArchiveBrowserDialog — shown when the user double-clicks a .zip in Explorer
-// (file-association invocation: OpenZipApp.exe <zip>).
+// (file-association invocation: openzip.exe <zip>).
 //
 // Caller sets `zip_path` before calling DoModal().
 //

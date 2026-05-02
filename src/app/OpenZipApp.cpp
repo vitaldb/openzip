@@ -2,12 +2,17 @@
 #include "OpenZipApp.h"
 
 #include "ArchiveBrowserDialog.h"
+#include "CliRunner.h"
 #include "CommandLine.h"
 #include "CompressDialog.h"
 #include "CompressOptionsDialog.h"
 #include "ExtractDialog.h"
 #include "SingleInstance.h"
 #include "resource.h"
+
+#include <cstdio>
+#include <io.h>
+#include <fcntl.h>
 
 BEGIN_MESSAGE_MAP(COpenZipApp, CWinApp)
 END_MESSAGE_MAP()
@@ -18,12 +23,71 @@ namespace {
 
 constexpr DWORD kLeaderGraceMs = 250;
 
+// Did we successfully attach to the parent shell's console at startup?
+// When true, --help and parse-error messages go to stdout/stderr instead
+// of MessageBox so `openzip --help` from cmd/PowerShell prints inline.
+bool g_console_attached = false;
+
+void TryAttachParentConsole() {
+    // Step 1: attach to parent console if it has one (cmd, PowerShell, etc).
+    bool attached = ::AttachConsole(ATTACH_PARENT_PROCESS) != FALSE;
+
+    // Step 2: bind CRT stdout/stderr to OS standard handles. This is the same
+    // technique VitalRecorder uses — works whether AttachConsole succeeded
+    // (real console) or our std handles were inherited as pipes/files
+    // (e.g. PowerShell `Start-Process -RedirectStandardOutput`). _open_osfhandle
+    // adopts the OS handle as a CRT file descriptor, then _dup2 binds it to
+    // the well-known stdout/stderr fd that fputs/printf write through.
+    HANDLE hOut = ::GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE hErr = ::GetStdHandle(STD_ERROR_HANDLE);
+    if (hOut && hOut != INVALID_HANDLE_VALUE) {
+        int fd = ::_open_osfhandle(reinterpret_cast<intptr_t>(hOut), 0);
+        if (fd >= 0) { ::_dup2(fd, ::_fileno(stdout)); std::setvbuf(stdout, nullptr, _IONBF, 0); }
+    }
+    if (hErr && hErr != INVALID_HANDLE_VALUE) {
+        int fd = ::_open_osfhandle(reinterpret_cast<intptr_t>(hErr), 0);
+        if (fd >= 0) { ::_dup2(fd, ::_fileno(stderr)); std::setvbuf(stderr, nullptr, _IONBF, 0); }
+    }
+
+    // Step 3: declare CLI mode if we actually have somewhere to write.
+    DWORD ftOut = hOut ? ::GetFileType(hOut) : FILE_TYPE_UNKNOWN;
+    bool stdio_connected = (ftOut == FILE_TYPE_CHAR
+                         || ftOut == FILE_TYPE_PIPE
+                         || ftOut == FILE_TYPE_DISK);
+    if (attached || stdio_connected) {
+        g_console_attached = true;
+        if (attached) ::SetConsoleOutputCP(CP_UTF8);
+    }
+}
+
+std::string WideToUtf8(const std::wstring& w) {
+    if (w.empty()) return {};
+    int n = ::WideCharToMultiByte(CP_UTF8, 0, w.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (n <= 0) return {};
+    std::string out(static_cast<size_t>(n - 1), '\0');
+    ::WideCharToMultiByte(CP_UTF8, 0, w.c_str(), -1, out.data(), n, nullptr, nullptr);
+    return out;
+}
+
 void ShowHelp() {
     CString text;
-    CString title;
     text.LoadString(IDS_HELP_TEXT);
-    title.LoadString(IDS_HELP_TITLE);
-    AfxMessageBox(text, MB_OK | MB_ICONINFORMATION);
+    if (g_console_attached) {
+        std::fputs(WideToUtf8(text.GetString()).c_str(), stdout);
+        std::fputc('\n', stdout);
+    } else {
+        AfxMessageBox(text, MB_OK | MB_ICONINFORMATION);
+    }
+}
+
+void ShowError(const std::wstring& msg) {
+    if (g_console_attached) {
+        std::fputs("openzip: ", stderr);
+        std::fputs(WideToUtf8(msg).c_str(), stderr);
+        std::fputc('\n', stderr);
+    } else {
+        AfxMessageBox(msg.c_str(), MB_OK | MB_ICONERROR);
+    }
 }
 
 void ProcessOne(const std::wstring& raw_cmdline) {
@@ -34,7 +98,7 @@ void ProcessOne(const std::wstring& raw_cmdline) {
         return;
     }
     if (!cl.valid) {
-        AfxMessageBox(cl.error.c_str(), MB_OK | MB_ICONERROR);
+        ShowError(cl.error);
         return;
     }
 
@@ -112,6 +176,27 @@ void ProcessOne(const std::wstring& raw_cmdline) {
 BOOL COpenZipApp::InitInstance() {
     CWinApp::InitInstance();
     AfxEnableControlContainer();
+
+    // If we were spawned from a console (cmd, PowerShell, Windows Terminal),
+    // attach to the parent's console so --help and parse errors print inline
+    // instead of popping a MessageBox. No-op when launched from Explorer or
+    // by the shell extension's CreateProcess (which has no console).
+    TryAttachParentConsole();
+
+    // Console-attached → CLI mode: extract / compress / list directly to
+    // stdout, no dialogs, no single-instance queue. Each invocation is
+    // independent and exits when the work is done.
+    //
+    // ExitProcess is used (instead of returning FALSE from InitInstance,
+    // which would force exit code 0) so the shell sees a meaningful status:
+    // 0 = success, 1 = operation failed, 2 = bad command line.
+    if (g_console_attached) {
+        auto cl = openzip::ParseCommandLine(::GetCommandLineW());
+        if (cl.show_help)              { ShowHelp(); ::ExitProcess(0); }
+        if (!cl.valid)                 { ShowError(cl.error); ::ExitProcess(2); }
+        int rc = openzip::cli::Run(cl);
+        ::ExitProcess(static_cast<UINT>(rc));
+    }
 
     // Honour the user's preferred UI language. STRINGTABLEs in OpenZipApp.rc
     // are split between LANG_ENGLISH and LANG_KOREAN; LoadString picks

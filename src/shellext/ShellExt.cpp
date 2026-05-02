@@ -223,7 +223,7 @@ HRESULT CopyToTaskMem(const wchar_t* src, LPWSTR* out) {
     return S_OK;
 }
 
-// Resolve the absolute path of OpenZipApp.exe (assumed to live next to this DLL).
+// Resolve the absolute path of openzip.exe (assumed to live next to this DLL).
 std::wstring AppExePath() {
     wchar_t buf[MAX_PATH];
     DWORD n = ::GetModuleFileNameW(g_module, buf, MAX_PATH);
@@ -231,7 +231,7 @@ std::wstring AppExePath() {
     std::wstring path(buf, n);
     size_t slash = path.find_last_of(L"\\/");
     if (slash != std::wstring::npos) path.resize(slash + 1);
-    path += L"OpenZipApp.exe";
+    path += L"openzip.exe";
     return path;
 }
 

@@ -10,98 +10,129 @@
 
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 
-IDD_ARCHIVE_BROWSER DIALOGEX 0, 0, 500, 340
+// Minimal dialog system — common rules:
+//   * 16 dlu outer margin
+//   * 12 dlu vertical row gap
+//   * No GROUPBOX chrome — whitespace + inline labels carry grouping
+//   * Action buttons: right-aligned, 60×16 dlu, OK before Cancel (Win11 convention)
+//   * "Heading + value" label pairs collapsed to value-only where context is clear
+
+IDD_ARCHIVE_BROWSER DIALOGEX 0, 0, 540, 360
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "OpenZip"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    LTEXT           "", IDC_BROWSE_ZIPPATH, 12, 10, 476, 10, SS_NOPREFIX | SS_ENDELLIPSIS
+    LTEXT           "", IDC_BROWSE_ZIPPATH, 16, 14, 508, 12, SS_NOPREFIX | SS_PATHELLIPSIS
     CONTROL         "", IDC_BROWSE_LIST, "SysListView32",
                     LVS_REPORT | LVS_SHOWSELALWAYS | LVS_AUTOARRANGE | WS_BORDER | WS_TABSTOP,
-                    12, 26, 476, 280
-    DEFPUSHBUTTON   "Extract All", IDC_BROWSE_EXTRACT_ALL, 348, 316, 68, 16
-    PUSHBUTTON      "Close",       IDCANCEL,                424, 316, 64, 16
+                    16, 32, 508, 296
+    DEFPUSHBUTTON   "Extract All", IDC_BROWSE_EXTRACT_ALL, 384, 338, 70, 16
+    PUSHBUTTON      "Close",       IDCANCEL,               464, 338, 60, 16
 END
 
-IDD_COMPRESS_OPTIONS DIALOGEX 0, 0, 320, 220
+IDD_COMPRESS_OPTIONS DIALOGEX 0, 0, 360, 224
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "OpenZip"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    LTEXT           "Output name",  IDC_LABEL_COMPRESS_OUTNAME, 12, 12, 60, 10
-    EDITTEXT        IDC_COMPRESS_OUTNAME, 80, 10, 220, 14, ES_AUTOHSCROLL
-    LTEXT           "Output dir",   IDC_LABEL_COMPRESS_OUTDIR, 12, 32, 60, 10
-    EDITTEXT        IDC_COMPRESS_OUTDIR, 80, 30, 180, 14, ES_AUTOHSCROLL
-    PUSHBUTTON      "...",          IDC_COMPRESS_BROWSE, 264, 30, 36, 14
-    GROUPBOX        "Level",        IDC_GROUP_COMPRESS_LEVEL, 12, 56, 296, 36
-    AUTORADIOBUTTON "Store",  IDC_COMPRESS_LEVEL_STORE,  20, 70, 50, 12, WS_GROUP
-    AUTORADIOBUTTON "Fast",   IDC_COMPRESS_LEVEL_FAST,   80, 70, 50, 12
-    AUTORADIOBUTTON "Normal", IDC_COMPRESS_LEVEL_NORMAL, 140, 70, 50, 12
-    AUTORADIOBUTTON "Max",    IDC_COMPRESS_LEVEL_MAX,    200, 70, 50, 12
-    LTEXT           "Password",     IDC_LABEL_COMPRESS_PASSWORD, 12, 104, 60, 10
-    EDITTEXT        IDC_COMPRESS_PASSWORD, 80, 102, 220, 14, ES_PASSWORD | ES_AUTOHSCROLL
-    LTEXT           "Confirm",      IDC_LABEL_COMPRESS_PASSWORD_CFM, 12, 124, 60, 10
-    EDITTEXT        IDC_COMPRESS_PASSWORD_CFM, 80, 122, 220, 14, ES_PASSWORD | ES_AUTOHSCROLL
-    AUTOCHECKBOX    "Show", IDC_COMPRESS_SHOW_PW, 80, 142, 60, 12
-    DEFPUSHBUTTON   "OK",     IDOK,     180, 192, 60, 16
-    PUSHBUTTON      "Cancel", IDCANCEL, 248, 192, 60, 16
+    // Output filename
+    LTEXT           "Output name", IDC_LABEL_COMPRESS_OUTNAME, 16, 16, 80, 10
+    EDITTEXT        IDC_COMPRESS_OUTNAME, 16, 28, 328, 14, ES_AUTOHSCROLL
+
+    // Output folder + browse
+    LTEXT           "Output folder", IDC_LABEL_COMPRESS_OUTDIR, 16, 50, 80, 10
+    EDITTEXT        IDC_COMPRESS_OUTDIR,  16, 62, 280, 14, ES_AUTOHSCROLL
+    PUSHBUTTON      "...",                IDC_COMPRESS_BROWSE, 304, 62, 40, 14
+
+    // Compression level — single inline row, no group box
+    LTEXT           "Compression",    IDC_GROUP_COMPRESS_LEVEL, 16, 88, 80, 10
+    AUTORADIOBUTTON "Store",  IDC_COMPRESS_LEVEL_STORE,   16, 102, 60, 12, WS_GROUP
+    AUTORADIOBUTTON "Fast",   IDC_COMPRESS_LEVEL_FAST,    80, 102, 60, 12
+    AUTORADIOBUTTON "Normal", IDC_COMPRESS_LEVEL_NORMAL, 144, 102, 60, 12
+    AUTORADIOBUTTON "Max",    IDC_COMPRESS_LEVEL_MAX,    208, 102, 60, 12
+
+    // Password (single block — show checkbox sits with the inputs)
+    LTEXT           "Password (optional, empty = no encryption)",
+                    IDC_LABEL_COMPRESS_PASSWORD, 16, 128, 280, 10
+    EDITTEXT        IDC_COMPRESS_PASSWORD,     16, 140, 328, 14, ES_PASSWORD | ES_AUTOHSCROLL
+    EDITTEXT        IDC_COMPRESS_PASSWORD_CFM, 16, 158, 328, 14, ES_PASSWORD | ES_AUTOHSCROLL
+    LTEXT           "Re-enter password", IDC_LABEL_COMPRESS_PASSWORD_CFM, 16, 176, 120, 10
+    AUTOCHECKBOX    "Show", IDC_COMPRESS_SHOW_PW, 280, 176, 64, 12
+
+    // Action buttons — right-aligned
+    DEFPUSHBUTTON   "OK",     IDOK,     220, 198, 60, 16
+    PUSHBUTTON      "Cancel", IDCANCEL, 284, 198, 60, 16
 END
 
-IDD_COMPRESS DIALOGEX 0, 0, 320, 130
+IDD_COMPRESS DIALOGEX 0, 0, 360, 130
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "OpenZip"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    LTEXT   "Ready...", IDC_COMPRESS_CURRENT, 12, 12, 296, 24, SS_NOPREFIX | SS_ENDELLIPSIS
-    CONTROL "", IDC_COMPRESS_PROGRESS, "msctls_progress32", WS_BORDER, 12, 50, 296, 14
-    LTEXT   "", IDC_COMPRESS_QUEUE, 12, 76, 296, 12
-    PUSHBUTTON "Cancel", IDC_COMPRESS_CANCEL, 250, 100, 60, 16
+    LTEXT   "Ready...", IDC_COMPRESS_CURRENT, 16, 18, 328, 24, SS_NOPREFIX | SS_PATHELLIPSIS
+    CONTROL "",         IDC_COMPRESS_PROGRESS, "msctls_progress32",
+                        PBS_SMOOTH | WS_BORDER, 16, 60, 328, 12
+    LTEXT   "",         IDC_COMPRESS_QUEUE, 16, 80, 200, 12
+    PUSHBUTTON "Cancel", IDC_COMPRESS_CANCEL, 284, 104, 60, 16
 END
 
-IDD_EXTRACT DIALOGEX 0, 0, 340, 110
+IDD_EXTRACT DIALOGEX 0, 0, 360, 116
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_DLGMODALFRAME
 CAPTION "OpenZip"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    LTEXT           "Archive:", IDC_LABEL_ARCHIVE_HEADING, 10, 10, 40, 10
-    LTEXT           "", IDC_LABEL_ARCHIVE, 55, 10, 275, 10, SS_PATHELLIPSIS
-    LTEXT           "Current:", IDC_LABEL_CURRENT_HEADING, 10, 25, 40, 10
-    LTEXT           "", IDC_LABEL_CURRENT_FILE, 55, 25, 275, 10, SS_PATHELLIPSIS
-    CONTROL         "", IDC_PROGRESS_OVERALL, "msctls_progress32", PBS_SMOOTH | WS_BORDER, 10, 45, 320, 12
-    LTEXT           "0%", IDC_LABEL_PERCENT, 10, 62, 80, 10
-    LTEXT           "", IDC_LABEL_COUNT, 100, 62, 100, 10, SS_CENTER
-    LTEXT           "", IDC_LABEL_SPEED, 230, 62, 100, 10, SS_RIGHT
-    DEFPUSHBUTTON   "Cancel", IDCANCEL, 270, 82, 60, 20
+    // Heading labels collapsed — value text alone carries the meaning.
+    // The two LABEL_HEADING controls are kept (for backward compatibility with
+    // ExtractDialog.cpp's SetDlgItemText calls) but moved off-screen.
+    LTEXT           "", IDC_LABEL_ARCHIVE_HEADING, -100, -100, 8, 8, NOT WS_VISIBLE
+    LTEXT           "", IDC_LABEL_CURRENT_HEADING, -100, -100, 8, 8, NOT WS_VISIBLE
+
+    LTEXT           "", IDC_LABEL_ARCHIVE,      16, 14, 328, 10, SS_PATHELLIPSIS
+    LTEXT           "", IDC_LABEL_CURRENT_FILE, 16, 28, 328, 10, SS_PATHELLIPSIS
+
+    CONTROL         "", IDC_PROGRESS_OVERALL, "msctls_progress32",
+                        PBS_SMOOTH | WS_BORDER, 16, 50, 328, 12
+
+    LTEXT           "0%", IDC_LABEL_PERCENT, 16, 68, 60, 10
+    LTEXT           "",   IDC_LABEL_COUNT,  130, 68, 100, 10, SS_CENTER
+    LTEXT           "",   IDC_LABEL_SPEED,  240, 68, 104, 10, SS_RIGHT
+
+    DEFPUSHBUTTON   "Cancel", IDCANCEL, 284, 90, 60, 16
 END
 
-IDD_PASSWORD DIALOGEX 0, 0, 260, 95
+IDD_PASSWORD DIALOGEX 0, 0, 300, 110
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_DLGMODALFRAME
 CAPTION "Password Required"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    LTEXT           "", IDC_LABEL_PASSWORD_PROMPT, 10, 10, 240, 10
-    LTEXT           "Enter password:", IDC_LABEL_PASSWORD_ENTER, 10, 25, 80, 10
-    EDITTEXT        IDC_EDIT_PASSWORD, 10, 38, 240, 14, ES_PASSWORD | ES_AUTOHSCROLL
-    LTEXT           "", IDC_LABEL_PASSWORD_HINT, 10, 56, 240, 10
-    DEFPUSHBUTTON   "OK", IDOK, 145, 72, 50, 18
-    PUSHBUTTON      "Cancel", IDCANCEL, 200, 72, 50, 18
+    // The encryption-context prompt (e.g. "Archive 'foo.zip' is password-protected.")
+    // is the only heading — Enter Password label is dropped (cue is obvious).
+    LTEXT           "", IDC_LABEL_PASSWORD_PROMPT, 16, 16, 268, 24
+    // Hidden no-op kept so ExtractDialog.cpp's SetDlgItemText still finds it.
+    LTEXT           "", IDC_LABEL_PASSWORD_ENTER,  -100, -100, 8, 8, NOT WS_VISIBLE
+    EDITTEXT        IDC_EDIT_PASSWORD, 16, 50, 268, 14, ES_PASSWORD | ES_AUTOHSCROLL
+    LTEXT           "", IDC_LABEL_PASSWORD_HINT,   16, 70, 268, 10
+    DEFPUSHBUTTON   "OK",     IDOK,     164, 88, 60, 16
+    PUSHBUTTON      "Cancel", IDCANCEL, 228, 88, 60, 16
 END
 
-IDD_CONFLICT DIALOGEX 0, 0, 320, 115
+IDD_CONFLICT DIALOGEX 0, 0, 360, 124
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_DLGMODALFRAME
 CAPTION "File Already Exists"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    LTEXT           "", IDC_LABEL_CONFLICT_HEADING, 10, 10, 300, 10
-    LTEXT           "", IDC_LABEL_CONFLICT_PATH, 10, 24, 300, 20, SS_PATHELLIPSIS
-    AUTOCHECKBOX    "", IDC_CHECK_REMEMBER, 10, 50, 300, 12
-    PUSHBUTTON      "Overwrite", IDC_BTN_OVERWRITE, 10, 75, 65, 22
-    DEFPUSHBUTTON   "Skip", IDC_BTN_SKIP, 80, 75, 65, 22
-    PUSHBUTTON      "Rename", IDC_BTN_RENAME, 150, 75, 65, 22
-    PUSHBUTTON      "Cancel", IDCANCEL, 250, 75, 60, 22
+    LTEXT           "", IDC_LABEL_CONFLICT_HEADING, 16, 16, 328, 10
+    LTEXT           "", IDC_LABEL_CONFLICT_PATH,    16, 30, 328, 20, SS_PATHELLIPSIS
+    AUTOCHECKBOX    "", IDC_CHECK_REMEMBER,         16, 60, 328, 12
+
+    // Right-aligned action row. Skip is the safe default (per spec §3 #7).
+    PUSHBUTTON      "Overwrite", IDC_BTN_OVERWRITE, 88,  98, 60, 18
+    DEFPUSHBUTTON   "Skip",      IDC_BTN_SKIP,      152, 98, 60, 18
+    PUSHBUTTON      "Rename",    IDC_BTN_RENAME,    216, 98, 60, 18
+    PUSHBUTTON      "Cancel",    IDCANCEL,          280, 98, 60, 18
 END
 
 /////////////////////////////////////////////////////////////////////////////
@@ -135,7 +166,7 @@ BEGIN
 
     IDS_HELP_TITLE               "OpenZip"
     IDS_ERROR_TITLE              "OpenZip"
-    IDS_HELP_TEXT                "OpenZip 0.3.0 — usage:\n\n  OpenZipApp.exe [--extract] <zip-path> [options]\n  OpenZipApp.exe --compress --output <zip> [--mode bundle|each|prompt] --item <path>...\n\nExtract options:\n  --target <dir>   explicit output directory\n  --here           extract into the zip's parent directory\n  --folder         extract into a new subfolder named after the zip (default)\n  --password <pw>  pre-supply the password for encrypted archives\n  --threads <n>    override extraction parallelism (0 = auto, 1 = legacy serial)\n\nCompress options:\n  --output <zip>   output zip path (required for bundle mode)\n  --mode           bundle (default), each, or prompt\n  --level          store, fast, normal (default), or max\n  --encoding       utf8 (default) or cp949\n  --item <path>    source file or folder (repeatable)"
+    IDS_HELP_TEXT                "OpenZip 0.3.0 — usage:\n\n  openzip.exe [--extract] <zip-path> [options]\n  openzip.exe --compress --output <zip> [--mode bundle|each|prompt] --item <path>...\n\nExtract options:\n  --target <dir>   explicit output directory\n  --here           extract into the zip's parent directory\n  --folder         extract into a new subfolder named after the zip (default)\n  --password <pw>  pre-supply the password for encrypted archives\n  --threads <n>    override extraction parallelism (0 = auto, 1 = legacy serial)\n\nCompress options:\n  --output <zip>   output zip path (required for bundle mode)\n  --mode           bundle (default), each, or prompt\n  --level          store, fast, normal (default), or max\n  --encoding       utf8 (default) or cp949\n  --item <path>    source file or folder (repeatable)"
 
     IDS_DIALOG_COMPRESS_OPT_TITLE   "OpenZip — Compress Options"
     IDS_DIALOG_COMPRESS_TITLE       "OpenZip — Compress"
@@ -191,7 +222,7 @@ BEGIN
 
     IDS_HELP_TITLE               "OpenZip"
     IDS_ERROR_TITLE              "OpenZip"
-    IDS_HELP_TEXT                "OpenZip 0.3.0 — 사용법:\n\n  OpenZipApp.exe [--extract] <zip-path> [옵션]\n  OpenZipApp.exe --compress --output <zip> [--mode bundle|each|prompt] --item <path>...\n\n압축 해제 옵션:\n  --target <dir>   출력 폴더 지정\n  --here           zip 파일의 상위 폴더에 풀기\n  --folder         zip 파일 이름의 새 폴더에 풀기 (기본값)\n  --password <pw>  암호화된 아카이브 비밀번호 사전 지정\n  --threads <n>    추출 병렬도 지정 (0 = 자동, 1 = 단일 스레드)\n\n압축 옵션:\n  --output <zip>   출력 zip 경로 (bundle 모드 필수)\n  --mode           bundle (기본), each, 또는 prompt\n  --level          store, fast, normal (기본), 또는 max\n  --encoding       utf8 (기본) 또는 cp949\n  --item <path>    원본 파일 또는 폴더 (반복 지정 가능)"
+    IDS_HELP_TEXT                "OpenZip 0.3.0 — 사용법:\n\n  openzip.exe [--extract] <zip-path> [옵션]\n  openzip.exe --compress --output <zip> [--mode bundle|each|prompt] --item <path>...\n\n압축 해제 옵션:\n  --target <dir>   출력 폴더 지정\n  --here           zip 파일의 상위 폴더에 풀기\n  --folder         zip 파일 이름의 새 폴더에 풀기 (기본값)\n  --password <pw>  암호화된 아카이브 비밀번호 사전 지정\n  --threads <n>    추출 병렬도 지정 (0 = 자동, 1 = 단일 스레드)\n\n압축 옵션:\n  --output <zip>   출력 zip 경로 (bundle 모드 필수)\n  --mode           bundle (기본), each, 또는 prompt\n  --level          store, fast, normal (기본), 또는 max\n  --encoding       utf8 (기본) 또는 cp949\n  --item <path>    원본 파일 또는 폴더 (반복 지정 가능)"
 
     IDS_DIALOG_COMPRESS_OPT_TITLE   "OpenZip — 압축 옵션"
     IDS_DIALOG_COMPRESS_TITLE       "OpenZip — 압축"
@@ -244,7 +275,7 @@ BEGIN
             VALUE "FileVersion", "0.2.0.0"
             VALUE "InternalName", "OpenZipApp"
             VALUE "LegalCopyright", "Copyright (c) 2026 Hyung-Chul Lee / VitalDB"
-            VALUE "OriginalFilename", "OpenZipApp.exe"
+            VALUE "OriginalFilename", "openzip.exe"
             VALUE "ProductName", "OpenZip"
             VALUE "ProductVersion", "0.2.0.0"
         END

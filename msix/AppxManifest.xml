@@ -33,7 +33,7 @@
 
   <Applications>
     <Application Id="OpenZip"
-                 Executable="OpenZipApp.exe"
+                 Executable="openzip.exe"
                  EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements DisplayName="OpenZip"
                           Description="Lightweight ZIP extractor"
@@ -103,6 +103,17 @@
             </desktop5:ItemType>
           </desktop4:FileExplorerContextMenus>
         </desktop4:Extension>
+
+        <!-- Command-line execution alias: enables `openzip` from any cmd/PS shell.
+             Windows synthesises a stub at %LOCALAPPDATA%\Microsoft\WindowsApps\openzip.exe
+             which is on the user's PATH by default (Win10 1809+). -->
+        <uap3:Extension Category="windows.appExecutionAlias"
+                        Executable="openzip.exe"
+                        EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="openzip.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
 
         <!-- Classic Win10 context menu handler (IContextMenu / Win11 21H2+ manifest registration) -->
         <desktop9:Extension Category="windows.fileExplorerClassicContextMenuHandler">

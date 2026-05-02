@@ -6,7 +6,7 @@ Usage: python msix/build_msix.py [version]
 Prerequisites:
   - Windows 10/11 SDK installed (for makeappx.exe)
   - Release|x64 build completed:
-      OpenZipApp.exe and OpenZipShellExt.dll under x64/Release/
+      openzip.exe + OpenZipShellExt.dll + OpenZipShellExtClassic.dll under x64/Release/
   - msix/Assets/*.png present (run generate_assets.py first)
 
 Output:
@@ -88,7 +88,7 @@ def stage_files(version):
         shutil.copy2(png, os.path.join(STAGING_DIR, 'Assets'))
 
     # Binaries
-    required = ['OpenZipApp.exe', 'OpenZipShellExt.dll', 'OpenZipShellExtClassic.dll']
+    required = ['openzip.exe', 'OpenZipShellExt.dll', 'OpenZipShellExtClassic.dll']
     missing = []
     for binname in required:
         src = os.path.join(RELEASE_DIR, binname)

@@ -14,6 +14,10 @@
     <ProjectGuid>{1A2B3C4D-0003-4000-8000-100000000003}</ProjectGuid>
     <RootNamespace>OpenZipApp</RootNamespace>
     <ProjectName>OpenZipApp</ProjectName>
+    <!-- Project name kept as OpenZipApp for solution stability; the EXE
+         output is renamed to openzip.exe so the Microsoft Store appExecutionAlias
+         resolves cleanly as `openzip` from any shell. -->
+    <TargetName>openzip</TargetName>
     <Keyword>MFCProj</Keyword>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -99,6 +103,7 @@
     <ClInclude Include="CompressOptionsDialog.h" />
     <ClInclude Include="CompressDialog.h" />
     <ClInclude Include="dark_theme.h" />
+    <ClInclude Include="CliRunner.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -114,6 +119,7 @@
     <ClCompile Include="CompressOptionsDialog.cpp" />
     <ClCompile Include="CompressDialog.cpp" />
     <ClCompile Include="dark_theme.cpp" />
+    <ClCompile Include="CliRunner.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="OpenZipApp.rc" />
