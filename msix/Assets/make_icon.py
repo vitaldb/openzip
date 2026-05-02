@@ -4,7 +4,7 @@ Produces msix/Assets/source.png — a 1024x1024 RGBA icon.
 Run msix/generate_assets.py afterwards to derive the MSIX visual asset set.
 
 Style: Win11 Fluent-ish — vertical blue gradient on a rounded square,
-white stylized "Z" with a downward extraction arrow.
+single white stylized "Z" centered.
 """
 import os
 from PIL import Image, ImageDraw, ImageFont
@@ -57,37 +57,16 @@ def main():
     if not font_path:
         raise RuntimeError('No bold system font found')
 
-    # Big white "Z", slightly raised to leave room for the arrow underneath.
-    font_z = ImageFont.truetype(font_path, size=int(SIZE * 0.65))
+    # Big white "Z" — fully centered, larger now that the arrow underneath
+    # has been removed.
+    font_z = ImageFont.truetype(font_path, size=int(SIZE * 0.78))
     text = 'Z'
     bbox = draw.textbbox((0, 0), text, font=font_z)
     tw = bbox[2] - bbox[0]
     th = bbox[3] - bbox[1]
     z_x = (SIZE - tw) / 2 - bbox[0]
-    z_y = (SIZE - th) / 2 - bbox[1] - SIZE * 0.06
+    z_y = (SIZE - th) / 2 - bbox[1]
     draw.text((z_x, z_y), text, fill=(255, 255, 255), font=font_z)
-
-    # Downward extraction arrow under the Z.
-    cx = SIZE / 2
-    bar_w = SIZE * 0.045
-    bar_top = SIZE * 0.74
-    bar_bot = SIZE * 0.84
-    head_w = SIZE * 0.16
-    head_h = SIZE * 0.07
-    head_tip_y = bar_bot + head_h
-
-    # Bar.
-    draw.rounded_rectangle(
-        [cx - bar_w / 2, bar_top, cx + bar_w / 2, bar_bot + 4],
-        radius=int(bar_w / 2), fill=(255, 255, 255),
-    )
-    # Arrow head (triangle).
-    draw.polygon(
-        [(cx - head_w / 2, bar_bot),
-         (cx + head_w / 2, bar_bot),
-         (cx, head_tip_y)],
-        fill=(255, 255, 255),
-    )
 
     img.save(OUT)
     print(f'Wrote {OUT}')

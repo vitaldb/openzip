@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "CliRunner.h"
 
 #include "core/compressor.h"
 #include "core/extractor.h"
+
+#include <Windows.h>
 
 #include <atomic>
 #include <cstdio>

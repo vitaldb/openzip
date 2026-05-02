@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "ArchiveBrowserDialog.h"
+#include "flat_button.h"
 
 #include <algorithm>
 #include <map>
@@ -79,6 +80,7 @@ BOOL CArchiveBrowserDialog::OnInitDialog() {
     if (openzip::dark_theme::IsDarkModeActive()) {
         openzip::dark_theme::EnableForWindow(GetSafeHwnd());
     }
+    openzip::flat::ApplyToDialog(GetSafeHwnd());
 
     CString s;
     s.LoadString(IDS_DIALOG_BROWSE_TITLE);  SetWindowText(s);

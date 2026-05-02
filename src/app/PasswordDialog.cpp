@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "PasswordDialog.h"
+#include "flat_button.h"
 
 IMPLEMENT_DYNAMIC(CPasswordDialog, CDialogEx)
 
@@ -25,6 +26,7 @@ BOOL CPasswordDialog::OnInitDialog() {
     if (openzip::dark_theme::IsDarkModeActive()) {
         openzip::dark_theme::EnableForWindow(GetSafeHwnd());
     }
+    openzip::flat::ApplyToDialog(GetSafeHwnd());
 
     CString s;
     s.LoadString(IDS_DIALOG_PASSWORD_TITLE);  SetWindowText(s);

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "CompressDialog.h"
+#include "flat_button.h"
 
 #include <memory>
 #include <new>
@@ -74,6 +75,7 @@ BOOL CCompressDialog::OnInitDialog() {
     if (openzip::dark_theme::IsDarkModeActive()) {
         openzip::dark_theme::EnableForWindow(GetSafeHwnd());
     }
+    openzip::flat::ApplyToDialog(GetSafeHwnd());
 
     // Apply localized caption + labels at runtime.
     CString s;

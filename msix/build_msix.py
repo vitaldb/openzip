@@ -88,7 +88,10 @@ def stage_files(version):
         shutil.copy2(png, os.path.join(STAGING_DIR, 'Assets'))
 
     # Binaries
-    required = ['openzip.exe', 'OpenZipShellExt.dll', 'OpenZipShellExtClassic.dll']
+    #   OpenZipApp.exe — GUI (Windows subsystem); shell-ext + file-assoc target
+    #   openzip.exe    — CLI (Console subsystem); appExecutionAlias target
+    required = ['OpenZipApp.exe', 'openzip.exe',
+                'OpenZipShellExt.dll', 'OpenZipShellExtClassic.dll']
     missing = []
     for binname in required:
         src = os.path.join(RELEASE_DIR, binname)

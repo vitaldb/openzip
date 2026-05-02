@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "ConflictDialog.h"
+#include "flat_button.h"
 
 IMPLEMENT_DYNAMIC(CConflictDialog, CDialogEx)
 
@@ -24,6 +25,7 @@ BOOL CConflictDialog::OnInitDialog() {
     if (openzip::dark_theme::IsDarkModeActive()) {
         openzip::dark_theme::EnableForWindow(GetSafeHwnd());
     }
+    openzip::flat::ApplyToDialog(GetSafeHwnd());
 
     CString s;
     s.LoadString(IDS_DIALOG_CONFLICT_TITLE);  SetWindowText(s);

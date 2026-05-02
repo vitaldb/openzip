@@ -35,7 +35,7 @@ std::wstring AppExePath() {
     std::wstring p(buf, n);
     auto slash = p.find_last_of(L"\\/");
     if (slash != std::wstring::npos) p.resize(slash + 1);
-    return p + L"openzip.exe";
+    return p + L"OpenZipApp.exe";
 }
 
 void Log(const wchar_t* msg) {

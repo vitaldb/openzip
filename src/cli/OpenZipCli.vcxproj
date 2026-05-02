@@ -11,14 +11,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{1A2B3C4D-0003-4000-8000-100000000003}</ProjectGuid>
-    <RootNamespace>OpenZipApp</RootNamespace>
-    <ProjectName>OpenZipApp</ProjectName>
-    <!-- Project name kept as OpenZipApp for solution stability; the EXE
-         output is renamed to openzip.exe so the Microsoft Store appExecutionAlias
-         resolves cleanly as `openzip` from any shell. -->
+    <ProjectGuid>{1A2B3C4D-0007-4000-8000-100000000007}</ProjectGuid>
+    <RootNamespace>OpenZipCli</RootNamespace>
+    <ProjectName>OpenZipCli</ProjectName>
+    <!-- Output is openzip.exe; the GUI counterpart in src/app emits OpenZipApp.exe. -->
     <TargetName>openzip</TargetName>
-    <Keyword>MFCProj</Keyword>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -26,7 +23,6 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
-    <UseOfMfc>Static</UseOfMfc>
     <PlatformToolset>v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
@@ -34,7 +30,6 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
-    <UseOfMfc>Static</UseOfMfc>
     <PlatformToolset>v145</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -44,26 +39,23 @@
   <PropertyGroup>
     <OutDir>$(SolutionDir)x64\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)build\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
-    <IncludePath>$(SolutionDir)src\;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)src\;$(SolutionDir)src\app\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;_CRT_SECURE_NO_WARNINGS;NOMINMAX;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_CONSOLE;_CRT_SECURE_NO_WARNINGS;NOMINMAX;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
-    <ResourceCompile>
-      <Culture>0x0409</Culture>
-    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -72,7 +64,7 @@
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>minizip-ng.lib;zlibd.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>minizip-ng.lib;zlibd.lib;bcrypt.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -86,49 +78,21 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>minizip-ng.lib;zlib.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>minizip-ng.lib;zlib.lib;bcrypt.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="stdafx.h" />
-    <ClInclude Include="targetver.h" />
-    <ClInclude Include="OpenZipApp.h" />
-    <ClInclude Include="ArchiveBrowserDialog.h" />
-    <ClInclude Include="CommandLine.h" />
-    <ClInclude Include="resource.h" />
-    <ClInclude Include="ExtractDialog.h" />
-    <ClInclude Include="PasswordDialog.h" />
-    <ClInclude Include="ConflictDialog.h" />
-    <ClInclude Include="SingleInstance.h" />
-    <ClInclude Include="CompressOptionsDialog.h" />
-    <ClInclude Include="CompressDialog.h" />
-    <ClInclude Include="dark_theme.h" />
-    <ClInclude Include="flat_button.h" />
+    <ClCompile Include="CliMain.cpp" />
+    <ClCompile Include="CliRunner.cpp" />
+    <!-- Shared command-line parser, also compiled into OpenZipApp. -->
+    <ClCompile Include="..\app\CommandLine.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="stdafx.cpp">
-      <PrecompiledHeader>Create</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="OpenZipApp.cpp" />
-    <ClCompile Include="ArchiveBrowserDialog.cpp" />
-    <ClCompile Include="CommandLine.cpp">
-      <!-- Shared with src/cli/OpenZipCli; doesn't include stdafx.h. -->
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="ExtractDialog.cpp" />
-    <ClCompile Include="PasswordDialog.cpp" />
-    <ClCompile Include="ConflictDialog.cpp" />
-    <ClCompile Include="SingleInstance.cpp" />
-    <ClCompile Include="CompressOptionsDialog.cpp" />
-    <ClCompile Include="CompressDialog.cpp" />
-    <ClCompile Include="dark_theme.cpp" />
-    <ClCompile Include="flat_button.cpp" />
+    <ClInclude Include="CliRunner.h" />
+    <ClInclude Include="..\app\CommandLine.h" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="OpenZipApp.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\core\OpenZipCore.vcxproj">
+    <ProjectReference Include="..\core\OpenZipCore.vcxproj">
       <Project>{1a2b3c4d-0001-4000-8000-100000000001}</Project>
     </ProjectReference>
   </ItemGroup>

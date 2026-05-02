@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "CompressOptionsDialog.h"
+#include "flat_button.h"
 
 #include <filesystem>
 #include <shlobj_core.h>
@@ -31,6 +32,7 @@ BOOL CCompressOptionsDialog::OnInitDialog() {
     if (openzip::dark_theme::IsDarkModeActive()) {
         openzip::dark_theme::EnableForWindow(GetSafeHwnd());
     }
+    openzip::flat::ApplyToDialog(GetSafeHwnd());
 
     // Apply localized caption + labels at runtime (same pattern as ExtractDialog).
     CString s;

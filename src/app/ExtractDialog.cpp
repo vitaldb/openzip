@@ -3,6 +3,7 @@
 
 #include "PasswordDialog.h"
 #include "ConflictDialog.h"
+#include "flat_button.h"
 
 #include <chrono>
 
@@ -31,6 +32,7 @@ BOOL CExtractDialog::OnInitDialog() {
     if (openzip::dark_theme::IsDarkModeActive()) {
         openzip::dark_theme::EnableForWindow(GetSafeHwnd());
     }
+    openzip::flat::ApplyToDialog(GetSafeHwnd());
 
     CString s;
     s.LoadString(IDS_DIALOG_EXTRACT_TITLE);  SetWindowText(s);

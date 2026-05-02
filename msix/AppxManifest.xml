@@ -33,7 +33,7 @@
 
   <Applications>
     <Application Id="OpenZip"
-                 Executable="openzip.exe"
+                 Executable="OpenZipApp.exe"
                  EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements DisplayName="OpenZip"
                           Description="Lightweight ZIP extractor"

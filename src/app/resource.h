@@ -1,5 +1,11 @@
 #pragma once
 
+// ─── App icon (MFC convention) ──────────────────────────────────
+// CDialogEx::OnInitDialog auto-loads IDR_MAINFRAME for the dialog's
+// big/small icons via AfxGetApp()->LoadIcon, fixing the otherwise
+// generic-looking taskbar icon.
+#define IDR_MAINFRAME                   128
+
 // ─── Dialog IDs ─────────────────────────────────────────────────
 #define IDD_EXTRACT                     101
 #define IDD_PASSWORD                    102
