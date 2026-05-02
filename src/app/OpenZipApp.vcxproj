@@ -95,6 +95,8 @@
     <ClInclude Include="PasswordDialog.h" />
     <ClInclude Include="ConflictDialog.h" />
     <ClInclude Include="SingleInstance.h" />
+    <ClInclude Include="CompressOptionsDialog.h" />
+    <ClInclude Include="CompressDialog.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -106,6 +108,8 @@
     <ClCompile Include="PasswordDialog.cpp" />
     <ClCompile Include="ConflictDialog.cpp" />
     <ClCompile Include="SingleInstance.cpp" />
+    <ClCompile Include="CompressOptionsDialog.cpp" />
+    <ClCompile Include="CompressDialog.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="OpenZipApp.rc" />
