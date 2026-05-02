@@ -60,13 +60,22 @@ public:
         virtual void OnComplete(Result result) = 0;
     };
 
+    struct Options {
+        // 0 = auto (max(1, hardware_concurrency)), 1 = legacy single-thread,
+        // N>=2 = N worker threads. Internally clamped to [1, 16].
+        // Encrypted archives always run single-threaded regardless (preserves
+        // password-retry behavior).
+        int concurrency = 0;
+    };
+
     // List all entries without extracting. Returns an empty vector on open failure.
     static std::vector<Entry> ListEntries(const std::filesystem::path& zip_path);
 
     // Extract every entry from `zip_path` into `target_dir`. Creates target_dir if missing.
     static Result Extract(const std::filesystem::path& zip_path,
                           const std::filesystem::path& target_dir,
-                          ProgressCallback& cb);
+                          ProgressCallback& cb,
+                          const Options& opts = {});
 
     // Decompression bomb thresholds (see plan §8). Static so tests can override if needed.
     static constexpr uint64_t kBombRatioLimit = 100;                            // 100×

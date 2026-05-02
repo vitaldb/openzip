@@ -1,6 +1,6 @@
 {
   "name": "openzip",
-  "version-string": "0.1.0",
+  "version-string": "0.2.0",
   "description": "Minimal ZIP extractor for Windows 11 with Explorer context-menu integration",
   "homepage": "https://github.com/vitaldb/openzip",
   "license": "MIT",

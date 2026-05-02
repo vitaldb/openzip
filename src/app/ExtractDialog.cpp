@@ -72,7 +72,9 @@ void CExtractDialog::OnCancel() {
 
 UINT CExtractDialog::WorkerProc(LPVOID p) {
     auto* dlg = static_cast<CExtractDialog*>(p);
-    auto r = openzip::Extractor::Extract(dlg->cmd_.zip_path, dlg->cmd_.target_dir, *dlg);
+    openzip::Extractor::Options opts;
+    opts.concurrency = dlg->cmd_.threads;
+    auto r = openzip::Extractor::Extract(dlg->cmd_.zip_path, dlg->cmd_.target_dir, *dlg, opts);
     dlg->result_ = r;
     return 0;
 }
@@ -105,6 +107,9 @@ std::wstring CExtractDialog::OnPasswordRequired(const std::wstring& archive_name
 }
 
 openzip::Extractor::ConflictAction CExtractDialog::OnFileConflict(const std::wstring& dest_path) {
+    // Serialize access so concurrent workers don't stack overlapping prompts
+    // and don't race on `has_remembered_`.
+    std::lock_guard<std::mutex> lk(conflict_mtx_);
     if (has_remembered_) return remembered_conflict_;
 
     ConflictPromptArgs args{dest_path, openzip::Extractor::ConflictAction::Cancel, false};

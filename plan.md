@@ -307,6 +307,15 @@ Tasks:
 
 ### Phase 5 — Polish (post-v1, optional)
 
+### Done in v0.2.0
+- **Parallel extraction** — `Extractor::Options::concurrency` (auto = `hardware_concurrency` clamped to [1, 16]). Encrypted archives stay sequential to preserve password-retry semantics. Tiny archives (< 4 entries) also stay sequential. Conflict callback in CExtractDialog is now `std::mutex`-serialized so concurrent workers can't stack overlapping prompts.
+- Measured on a 32-core dev box (auto vs `--threads 1`):
+  - 100 × 1 MB random-data archive: 654 ms → 492 ms (~1.3×, write-throughput limited)
+  - 5000-tiny-file archive: 6.8 s → 3.5 s (~2×, NTFS metadata dominates)
+- Real-world Korean text-heavy ZIPs should see better gains since DEFLATE actually does CPU work.
+
+### Phase 5 polish — remaining
+
 In priority order:
 
 1. **Logging** — `%LOCALAPPDATA%\OpenZip\logs\` for user bug reports

@@ -4,9 +4,13 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <system_error>
+#include <thread>
+#include <vector>
 
 #include "path_validator.h"
 
@@ -23,6 +27,8 @@ namespace openzip {
 namespace {
 
 constexpr int32_t kReadBufSize = 64 * 1024;
+constexpr int kMaxConcurrency = 16;
+constexpr size_t kParallelMinEntries = 4;
 
 std::string ToUtf8(const std::wstring& w) {
     if (w.empty()) return {};
@@ -42,7 +48,6 @@ uint64_t FileSize(const fs::path& p) {
     return ec ? 0 : sz;
 }
 
-// Whether a ZIP entry's name indicates a directory.
 bool IsDirEntry(const Extractor::Entry& e, const char* raw_name, size_t raw_len) {
     if (!e.name.empty() && (e.name.back() == L'/' || e.name.back() == L'\\')) return true;
     if (raw_len > 0 && (raw_name[raw_len - 1] == '/' || raw_name[raw_len - 1] == '\\')) return true;
@@ -55,7 +60,6 @@ bool CreateDirsRecursive(const fs::path& dir) {
     return !ec;
 }
 
-// Generate a non-conflicting variant: foo.txt → "foo (1).txt", "foo (2).txt", ...
 fs::path MakeUniqueName(const fs::path& dest) {
     if (!fs::exists(dest)) return dest;
     fs::path stem = dest.stem();
@@ -67,7 +71,7 @@ fs::path MakeUniqueName(const fs::path& dest) {
         fs::path candidate = parent / (stem.wstring() + buf + ext.wstring());
         if (!fs::exists(candidate)) return candidate;
     }
-    return dest;  // give up — caller may overwrite
+    return dest;
 }
 
 class ZipReaderHandle {
@@ -102,7 +106,6 @@ private:
     HANDLE h_ = INVALID_HANDLE_VALUE;
 };
 
-// Translate the current entry's mz_zip_file into our Entry, decoding the filename.
 Extractor::Entry BuildEntry(const mz_zip_file* fi) {
     Extractor::Entry e;
     bool utf8_flag = (fi->flag & MZ_ZIP_FLAG_UTF8) != 0;
@@ -118,12 +121,7 @@ Extractor::Entry BuildEntry(const mz_zip_file* fi) {
     return e;
 }
 
-// Try opening the current entry; on password failure, prompt and retry.
-// Returns MZ_OK on success; otherwise sets out_result to the appropriate Result.
-//
-// For encrypted entries, minizip-ng expects the password to be set *before*
-// the first entry_open call. We prompt up-front if encryption is flagged but
-// no password has been supplied yet.
+// Sequential-mode password handling — preserves the v0.1 retry behavior.
 int32_t OpenEntryWithPassword(void* reader, const std::wstring& archive_name,
                               const std::wstring& entry_name, bool is_encrypted,
                               Extractor::ProgressCallback& cb,
@@ -150,7 +148,6 @@ int32_t OpenEntryWithPassword(void* reader, const std::wstring& archive_name,
         if (!prompt(/*was_wrong=*/false)) return MZ_PASSWORD_ERROR;
     }
 
-    bool was_wrong = false;
     while (true) {
         if (cb.ShouldCancel()) {
             out_result = Extractor::Result::Cancelled;
@@ -159,7 +156,6 @@ int32_t OpenEntryWithPassword(void* reader, const std::wstring& archive_name,
         int32_t err = mz_zip_reader_entry_open(reader);
         if (err == MZ_OK) return MZ_OK;
 
-        // After failure, close any partial reader state before retrying.
         mz_zip_reader_entry_close(reader);
 
         bool pw_related = is_encrypted ||
@@ -171,8 +167,284 @@ int32_t OpenEntryWithPassword(void* reader, const std::wstring& archive_name,
         }
 
         if (!prompt(/*was_wrong=*/true)) return err;
-        was_wrong = true;
     }
+}
+
+// ----- v0.1 single-threaded extraction (kept for encrypted archives + tiny ones) -----
+
+Extractor::Result ExtractSequential(const fs::path& zip_path,
+                                    const fs::path& target_dir,
+                                    std::vector<Extractor::Entry>& entries,
+                                    uint64_t total_uncompressed,
+                                    Extractor::ProgressCallback& cb) {
+    using Result = Extractor::Result;
+
+    ZipReaderHandle reader;
+    if (!reader) return Result::IoError;
+    if (mz_zip_reader_open_file(reader.get(), ToUtf8(zip_path).c_str()) != MZ_OK) {
+        return Result::CorruptArchive;
+    }
+
+    const std::wstring archive_name = zip_path.filename().wstring();
+    std::string password_utf8;
+    bool password_supplied = false;
+    uint64_t bytes_done = 0;
+    cb.OnBytes(0, total_uncompressed);
+
+    if (!entries.empty()) {
+        if (mz_zip_reader_goto_first_entry(reader.get()) != MZ_OK) {
+            return Result::CorruptArchive;
+        }
+    }
+
+    for (size_t idx = 0; idx < entries.size(); ++idx) {
+        if (cb.ShouldCancel()) return Result::Cancelled;
+
+        const Extractor::Entry& e = entries[idx];
+        cb.OnEntryStart(e, idx, entries.size());
+
+        ValidatedPath vp = ValidatePath(e.name, target_dir);
+        if (vp.error == PathError::EscapesTarget) return Result::UnsafePath;
+        if (vp.error == PathError::AbsolutePath) return Result::UnsafePath;
+        if (vp.error == PathError::ReservedName) return Result::ReservedName;
+        if (vp.error == PathError::EmptyPath) {
+            mz_zip_reader_goto_next_entry(reader.get());
+            continue;
+        }
+
+        const fs::path& dest_path = vp.absolute;
+
+        if (e.is_dir) {
+            CreateDirsRecursive(dest_path);
+            mz_zip_reader_goto_next_entry(reader.get());
+            continue;
+        }
+
+        if (dest_path.has_parent_path()) {
+            if (!CreateDirsRecursive(dest_path.parent_path())) return Result::IoError;
+        }
+
+        fs::path final_path = dest_path;
+        if (fs::exists(final_path)) {
+            Extractor::ConflictAction act = cb.OnFileConflict(final_path.wstring());
+            if (act == Extractor::ConflictAction::Cancel) return Result::Cancelled;
+            if (act == Extractor::ConflictAction::Skip) {
+                bytes_done += e.uncompressed_size;
+                cb.OnBytes(bytes_done, total_uncompressed);
+                mz_zip_reader_goto_next_entry(reader.get());
+                continue;
+            }
+            if (act == Extractor::ConflictAction::Rename) {
+                final_path = MakeUniqueName(final_path);
+            }
+        }
+
+        Result subresult = Result::CorruptArchive;
+        int32_t open_err = OpenEntryWithPassword(reader.get(), archive_name, e.name,
+                                                 e.needs_password, cb,
+                                                 password_utf8, password_supplied,
+                                                 subresult);
+        if (open_err != MZ_OK) return subresult;
+
+        std::wstring dest_w = MakeLongPath(final_path);
+        FileHandle out(::CreateFileW(dest_w.c_str(), GENERIC_WRITE, 0, nullptr,
+                                     CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
+        if (!out.valid()) {
+            mz_zip_reader_entry_close(reader.get());
+            return Result::IoError;
+        }
+
+        std::array<uint8_t, kReadBufSize> buf{};
+        bool cancelled = false, ioerror = false, corrupt = false, badpw = false;
+        while (true) {
+            if (cb.ShouldCancel()) { cancelled = true; break; }
+            int32_t n = mz_zip_reader_entry_read(reader.get(), buf.data(),
+                                                 static_cast<int32_t>(buf.size()));
+            if (n < 0) {
+                if (n == MZ_PASSWORD_ERROR || n == MZ_CRYPT_ERROR) badpw = true;
+                else corrupt = true;
+                break;
+            }
+            if (n == 0) break;
+            DWORD written = 0;
+            if (!::WriteFile(out.get(), buf.data(), static_cast<DWORD>(n), &written, nullptr) ||
+                written != static_cast<DWORD>(n)) {
+                ioerror = true; break;
+            }
+            bytes_done += static_cast<uint64_t>(n);
+            cb.OnBytes(bytes_done, total_uncompressed);
+        }
+
+        ::CloseHandle(out.get());
+        out.release();
+        mz_zip_reader_entry_close(reader.get());
+
+        if (cancelled || ioerror || corrupt || badpw) {
+            ::DeleteFileW(dest_w.c_str());
+            if (cancelled) return Result::Cancelled;
+            if (ioerror) return Result::IoError;
+            if (badpw) return Result::BadPassword;
+            return Result::CorruptArchive;
+        }
+
+        mz_zip_reader_goto_next_entry(reader.get());
+    }
+
+    return Result::Success;
+}
+
+// ----- v0.2 parallel extraction -----
+
+Extractor::Result ExtractParallel(const fs::path& zip_path,
+                                  const fs::path& target_dir,
+                                  std::vector<Extractor::Entry>& entries,
+                                  uint64_t total_uncompressed,
+                                  Extractor::ProgressCallback& cb,
+                                  int concurrency) {
+    using Result = Extractor::Result;
+
+    std::atomic<size_t> next_index{0};
+    std::atomic<uint64_t> bytes_done{0};
+    std::atomic<bool> stop{false};
+    std::atomic<int> first_err{static_cast<int>(Result::Success)};
+
+    auto fail = [&](Result r) {
+        if (!stop.exchange(true)) {
+            first_err.store(static_cast<int>(r));
+        }
+    };
+
+    cb.OnBytes(0, total_uncompressed);
+
+    const std::string zip_path_utf8 = ToUtf8(zip_path);
+
+    auto worker_proc = [&]() {
+        ZipReaderHandle reader;
+        if (!reader) { fail(Result::IoError); return; }
+        if (mz_zip_reader_open_file(reader.get(), zip_path_utf8.c_str()) != MZ_OK) {
+            fail(Result::CorruptArchive);
+            return;
+        }
+        if (mz_zip_reader_goto_first_entry(reader.get()) != MZ_OK) {
+            // Empty archive or read failure — let other workers exit cleanly.
+            return;
+        }
+        size_t cursor = 0;
+
+        while (!stop.load(std::memory_order_acquire)) {
+            if (cb.ShouldCancel()) { fail(Result::Cancelled); return; }
+
+            size_t claim = next_index.fetch_add(1, std::memory_order_relaxed);
+            if (claim >= entries.size()) return;
+
+            // Advance reader cursor to the claimed entry.
+            while (cursor < claim) {
+                if (mz_zip_reader_goto_next_entry(reader.get()) != MZ_OK) {
+                    fail(Result::CorruptArchive);
+                    return;
+                }
+                ++cursor;
+            }
+
+            const Extractor::Entry& e = entries[claim];
+            cb.OnEntryStart(e, claim, entries.size());
+
+            ValidatedPath vp = ValidatePath(e.name, target_dir);
+            if (vp.error == PathError::EscapesTarget) { fail(Result::UnsafePath); return; }
+            if (vp.error == PathError::AbsolutePath)  { fail(Result::UnsafePath); return; }
+            if (vp.error == PathError::ReservedName)  { fail(Result::ReservedName); return; }
+            if (vp.error == PathError::EmptyPath)     continue;
+
+            const fs::path& dest_path = vp.absolute;
+
+            if (e.is_dir) {
+                CreateDirsRecursive(dest_path);
+                continue;
+            }
+
+            if (dest_path.has_parent_path()) {
+                if (!CreateDirsRecursive(dest_path.parent_path())) {
+                    fail(Result::IoError);
+                    return;
+                }
+            }
+
+            fs::path final_path = dest_path;
+            if (fs::exists(final_path)) {
+                // OnFileConflict on the dialog side is mutex-protected (see
+                // CExtractDialog) so concurrent workers serialize cleanly.
+                Extractor::ConflictAction act = cb.OnFileConflict(final_path.wstring());
+                if (act == Extractor::ConflictAction::Cancel) { fail(Result::Cancelled); return; }
+                if (act == Extractor::ConflictAction::Skip) {
+                    bytes_done.fetch_add(e.uncompressed_size, std::memory_order_relaxed);
+                    cb.OnBytes(bytes_done.load(std::memory_order_relaxed), total_uncompressed);
+                    continue;
+                }
+                if (act == Extractor::ConflictAction::Rename) {
+                    final_path = MakeUniqueName(final_path);
+                }
+            }
+
+            // Encrypted entries are routed to the sequential path by the
+            // dispatcher, so a plain entry_open is sufficient here.
+            int32_t open_err = mz_zip_reader_entry_open(reader.get());
+            if (open_err != MZ_OK) {
+                mz_zip_reader_entry_close(reader.get());
+                fail(Result::CorruptArchive);
+                return;
+            }
+
+            std::wstring dest_w = MakeLongPath(final_path);
+            FileHandle out(::CreateFileW(dest_w.c_str(), GENERIC_WRITE, 0, nullptr,
+                                         CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
+            if (!out.valid()) {
+                mz_zip_reader_entry_close(reader.get());
+                fail(Result::IoError);
+                return;
+            }
+
+            std::array<uint8_t, kReadBufSize> buf{};
+            bool ok = true;
+            bool cancelled = false;
+            while (!stop.load(std::memory_order_acquire)) {
+                if (cb.ShouldCancel()) { cancelled = true; ok = false; break; }
+                int32_t n = mz_zip_reader_entry_read(reader.get(), buf.data(),
+                                                     static_cast<int32_t>(buf.size()));
+                if (n < 0) { ok = false; break; }
+                if (n == 0) break;
+                DWORD written = 0;
+                if (!::WriteFile(out.get(), buf.data(), static_cast<DWORD>(n),
+                                 &written, nullptr) ||
+                    written != static_cast<DWORD>(n)) {
+                    ok = false;
+                    break;
+                }
+                uint64_t total = bytes_done.fetch_add(static_cast<uint64_t>(n),
+                                                      std::memory_order_relaxed) + n;
+                cb.OnBytes(total, total_uncompressed);
+            }
+
+            ::CloseHandle(out.get());
+            out.release();
+            mz_zip_reader_entry_close(reader.get());
+
+            if (!ok) {
+                ::DeleteFileW(dest_w.c_str());
+                fail(cancelled ? Result::Cancelled : Result::IoError);
+                return;
+            }
+        }
+    };
+
+    std::vector<std::thread> workers;
+    workers.reserve(static_cast<size_t>(concurrency));
+    for (int i = 0; i < concurrency; ++i) {
+        workers.emplace_back(worker_proc);
+    }
+    for (auto& t : workers) t.join();
+
+    if (cb.ShouldCancel()) return Result::Cancelled;
+    return static_cast<Result>(first_err.load());
 }
 
 }  // namespace
@@ -195,7 +467,6 @@ std::vector<Extractor::Entry> Extractor::ListEntries(const fs::path& zip_path) {
     std::vector<Entry> out;
     ZipReaderHandle reader;
     if (!reader) return out;
-
     if (mz_zip_reader_open_file(reader.get(), ToUtf8(zip_path).c_str()) != MZ_OK) return out;
 
     int32_t err = mz_zip_reader_goto_first_entry(reader.get());
@@ -211,27 +482,24 @@ std::vector<Extractor::Entry> Extractor::ListEntries(const fs::path& zip_path) {
 
 Extractor::Result Extractor::Extract(const fs::path& zip_path,
                                      const fs::path& target_dir,
-                                     ProgressCallback& cb) {
+                                     ProgressCallback& cb,
+                                     const Options& opts) {
     auto finish = [&](Result r) -> Result { cb.OnComplete(r); return r; };
 
     if (!fs::exists(zip_path)) return finish(Result::IoError);
-
-    // Ensure target directory exists.
     if (!fs::exists(target_dir)) {
         if (!CreateDirsRecursive(target_dir)) return finish(Result::IoError);
     }
 
-    ZipReaderHandle reader;
-    if (!reader) return finish(Result::IoError);
-
-    if (mz_zip_reader_open_file(reader.get(), ToUtf8(zip_path).c_str()) != MZ_OK) {
-        return finish(Result::CorruptArchive);
-    }
-
-    // Gather all entries first (also lets us compute totals + bomb check).
+    // List entries (single-threaded) for total + bomb check + encryption detection.
     std::vector<Entry> entries;
     uint64_t total_uncompressed = 0;
     {
+        ZipReaderHandle reader;
+        if (!reader) return finish(Result::IoError);
+        if (mz_zip_reader_open_file(reader.get(), ToUtf8(zip_path).c_str()) != MZ_OK) {
+            return finish(Result::CorruptArchive);
+        }
         int32_t err = mz_zip_reader_goto_first_entry(reader.get());
         while (err == MZ_OK) {
             mz_zip_file* fi = nullptr;
@@ -251,131 +519,28 @@ Extractor::Result Extractor::Extract(const fs::path& zip_path,
         return finish(Result::BombRefused);
     }
 
-    const std::wstring archive_name = zip_path.filename().wstring();
-
-    // Conflict-action remembered across the archive (set by callback returning a non-prompt action
-    // is the dialog's responsibility; Extractor just calls OnFileConflict each time).
-
-    std::string password_utf8;
-    bool password_supplied = false;
-
-    uint64_t bytes_done = 0;
-    cb.OnBytes(0, total_uncompressed);
-
-    if (!entries.empty()) {
-        if (mz_zip_reader_goto_first_entry(reader.get()) != MZ_OK) {
-            return finish(Result::CorruptArchive);
-        }
+    // Resolve concurrency.
+    int concurrency = opts.concurrency;
+    if (concurrency <= 0) {
+        unsigned hw = std::thread::hardware_concurrency();
+        concurrency = static_cast<int>(hw == 0 ? 1u : hw);
     }
+    if (concurrency > kMaxConcurrency) concurrency = kMaxConcurrency;
+    if (concurrency < 1) concurrency = 1;
 
-    for (size_t idx = 0; idx < entries.size(); ++idx) {
-        if (cb.ShouldCancel()) return finish(Result::Cancelled);
+    bool any_encrypted = std::any_of(entries.begin(), entries.end(),
+                                     [](const Entry& e){ return e.needs_password; });
 
-        const Entry& e = entries[idx];
-        cb.OnEntryStart(e, idx, entries.size());
+    // Encrypted archives keep the v0.1 retry-aware sequential path.
+    // Tiny archives don't benefit from threads — overhead would dominate.
+    bool use_parallel = concurrency > 1 && !any_encrypted &&
+                        entries.size() >= kParallelMinEntries;
 
-        // Validate path.
-        ValidatedPath vp = ValidatePath(e.name, target_dir);
-        if (vp.error == PathError::EscapesTarget) return finish(Result::UnsafePath);
-        if (vp.error == PathError::AbsolutePath) return finish(Result::UnsafePath);
-        if (vp.error == PathError::ReservedName) return finish(Result::ReservedName);
-        if (vp.error == PathError::EmptyPath) {
-            // Skip empty / pointless entry; still advance.
-            mz_zip_reader_goto_next_entry(reader.get());
-            continue;
-        }
+    Result r = use_parallel
+        ? ExtractParallel(zip_path, target_dir, entries, total_uncompressed, cb, concurrency)
+        : ExtractSequential(zip_path, target_dir, entries, total_uncompressed, cb);
 
-        const fs::path& dest_path = vp.absolute;
-
-        if (e.is_dir) {
-            CreateDirsRecursive(dest_path);
-            mz_zip_reader_goto_next_entry(reader.get());
-            continue;
-        }
-
-        // Make sure parent dir exists.
-        if (dest_path.has_parent_path()) {
-            if (!CreateDirsRecursive(dest_path.parent_path())) return finish(Result::IoError);
-        }
-
-        // Resolve conflicts.
-        fs::path final_path = dest_path;
-        if (fs::exists(final_path)) {
-            ConflictAction act = cb.OnFileConflict(final_path.wstring());
-            if (act == ConflictAction::Cancel) return finish(Result::Cancelled);
-            if (act == ConflictAction::Skip) {
-                bytes_done += e.uncompressed_size;
-                cb.OnBytes(bytes_done, total_uncompressed);
-                mz_zip_reader_goto_next_entry(reader.get());
-                continue;
-            }
-            if (act == ConflictAction::Rename) {
-                final_path = MakeUniqueName(final_path);
-            }
-            // Overwrite: just proceed; CREATE_ALWAYS truncates.
-        }
-
-        // Open entry (with password retry).
-        Result subresult = Result::CorruptArchive;
-        int32_t open_err = OpenEntryWithPassword(reader.get(), archive_name, e.name,
-                                                 e.needs_password, cb,
-                                                 password_utf8, password_supplied,
-                                                 subresult);
-        if (open_err != MZ_OK) return finish(subresult);
-
-        // Open destination file.
-        std::wstring dest_w = MakeLongPath(final_path);
-        FileHandle out(::CreateFileW(dest_w.c_str(), GENERIC_WRITE, 0, nullptr,
-                                     CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
-        if (!out.valid()) {
-            mz_zip_reader_entry_close(reader.get());
-            return finish(Result::IoError);
-        }
-
-        // Read in chunks and write.
-        std::array<uint8_t, kReadBufSize> buf{};
-        bool cancelled = false;
-        bool ioerror = false;
-        bool corrupt = false;
-        bool badpw = false;
-        while (true) {
-            if (cb.ShouldCancel()) { cancelled = true; break; }
-            int32_t n = mz_zip_reader_entry_read(reader.get(), buf.data(),
-                                                 static_cast<int32_t>(buf.size()));
-            if (n < 0) {
-                if (n == MZ_PASSWORD_ERROR || n == MZ_CRYPT_ERROR) badpw = true;
-                else corrupt = true;
-                break;
-            }
-            if (n == 0) break;  // EOF
-            DWORD written = 0;
-            if (!::WriteFile(out.get(), buf.data(), static_cast<DWORD>(n), &written, nullptr) ||
-                written != static_cast<DWORD>(n)) {
-                ioerror = true;
-                break;
-            }
-            bytes_done += static_cast<uint64_t>(n);
-            cb.OnBytes(bytes_done, total_uncompressed);
-        }
-
-        // Close output before potentially deleting.
-        ::CloseHandle(out.get());
-        out.release();
-
-        mz_zip_reader_entry_close(reader.get());
-
-        if (cancelled || ioerror || corrupt || badpw) {
-            ::DeleteFileW(dest_w.c_str());  // remove partial file per plan §9
-            if (cancelled) return finish(Result::Cancelled);
-            if (ioerror) return finish(Result::IoError);
-            if (badpw) return finish(Result::BadPassword);
-            return finish(Result::CorruptArchive);
-        }
-
-        mz_zip_reader_goto_next_entry(reader.get());
-    }
-
-    return finish(Result::Success);
+    return finish(r);
 }
 
 }  // namespace openzip

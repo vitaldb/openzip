@@ -19,6 +19,7 @@ struct CommandLine {
     std::filesystem::path zip_path;
     std::filesystem::path target_dir;     // resolved against zip_path + flags
     std::wstring password;                // empty = prompt
+    int threads = 0;                      // 0 = auto, 1 = legacy serial, N = N threads
     bool show_help = false;
     bool valid = true;
     std::wstring error;

@@ -58,6 +58,9 @@ private:
     std::atomic<openzip::Extractor::Result> result_{openzip::Extractor::Result::Cancelled};
 
     // Conflict "remember choice" state. Owned by UI thread; worker reads via SendMessage.
+    // Multiple worker threads may call OnFileConflict simultaneously, so the
+    // entry path is mutex-serialized.
+    std::mutex conflict_mtx_;
     openzip::Extractor::ConflictAction remembered_conflict_ = openzip::Extractor::ConflictAction::Cancel;
     bool has_remembered_ = false;
 

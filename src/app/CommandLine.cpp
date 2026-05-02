@@ -60,6 +60,11 @@ CommandLine ParseCommandLine(const wchar_t* cmdline) {
             const wchar_t* v = need_value(L"--password");
             if (!v) break;
             c.password = v;
+        } else if (a == L"--threads") {
+            const wchar_t* v = need_value(L"--threads");
+            if (!v) break;
+            c.threads = ::_wtoi(v);
+            if (c.threads < 0) c.threads = 0;
         } else if (a == L"--here") {
             mode = Mode::Here;
         } else if (a == L"--folder") {
