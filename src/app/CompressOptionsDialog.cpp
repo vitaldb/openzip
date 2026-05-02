@@ -12,6 +12,7 @@ CCompressOptionsDialog::CCompressOptionsDialog(CWnd* pParent)
 BEGIN_MESSAGE_MAP(CCompressOptionsDialog, CDialogEx)
     ON_BN_CLICKED(IDC_COMPRESS_BROWSE,  &CCompressOptionsDialog::OnBrowse)
     ON_BN_CLICKED(IDC_COMPRESS_SHOW_PW, &CCompressOptionsDialog::OnTogglePasswordVisibility)
+    ON_WM_CTLCOLOR()
 END_MESSAGE_MAP()
 
 void CCompressOptionsDialog::DoDataExchange(CDataExchange* pDX) {
@@ -26,6 +27,10 @@ void CCompressOptionsDialog::DoDataExchange(CDataExchange* pDX) {
 
 BOOL CCompressOptionsDialog::OnInitDialog() {
     CDialogEx::OnInitDialog();
+
+    if (openzip::dark_theme::IsDarkModeActive()) {
+        openzip::dark_theme::EnableForWindow(GetSafeHwnd());
+    }
 
     // Apply localized caption + labels at runtime (same pattern as ExtractDialog).
     CString s;
@@ -92,6 +97,20 @@ void CCompressOptionsDialog::OnBrowse() {
         UpdateData(FALSE);
     }
     ::CoTaskMemFree(pidl);
+}
+
+HBRUSH CCompressOptionsDialog::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor) {
+    UINT msg;
+    switch (nCtlColor) {
+        case CTLCOLOR_EDIT:   msg = WM_CTLCOLOREDIT;   break;
+        case CTLCOLOR_STATIC: msg = WM_CTLCOLORSTATIC; break;
+        case CTLCOLOR_BTN:    msg = WM_CTLCOLORBTN;    break;
+        default:              msg = WM_CTLCOLORDLG;    break;
+    }
+    if (HBRUSH b = openzip::dark_theme::OnCtlColor(
+            pWnd->GetSafeHwnd(), pDC->GetSafeHdc(), msg))
+        return b;
+    return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
 }
 
 void CCompressOptionsDialog::OnTogglePasswordVisibility() {

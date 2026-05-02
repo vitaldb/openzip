@@ -3,6 +3,7 @@
 #include "stdafx.h"
 #include "resource.h"
 #include "core/compressor.h"
+#include "dark_theme.h"
 
 class CCompressOptionsDialog : public CDialogEx {
     DECLARE_DYNAMIC(CCompressOptionsDialog)
@@ -24,6 +25,7 @@ protected:
     void OnOK() override;
     afx_msg void OnBrowse();
     afx_msg void OnTogglePasswordVisibility();
+    afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
     DECLARE_MESSAGE_MAP()
 
 private:
