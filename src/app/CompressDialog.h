@@ -3,6 +3,7 @@
 #include "stdafx.h"
 #include "resource.h"
 #include "core/compressor.h"
+#include "dark_theme.h"
 
 #include <atomic>
 #include <filesystem>
@@ -35,6 +36,8 @@ protected:
     afx_msg LRESULT OnEntryStart(WPARAM wp, LPARAM lp);
     afx_msg LRESULT OnBytes(WPARAM wp, LPARAM lp);
     afx_msg LRESULT OnComplete(WPARAM wp, LPARAM lp);
+    afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+    afx_msg void OnProgressCustomDraw(NMHDR* hdr, LRESULT* result);
     DECLARE_MESSAGE_MAP()
 
 private:

@@ -60,6 +60,8 @@ BEGIN_MESSAGE_MAP(CCompressDialog, CDialogEx)
     ON_MESSAGE(WM_OZ_COMP_ENTRY,    &CCompressDialog::OnEntryStart)
     ON_MESSAGE(WM_OZ_COMP_BYTES,    &CCompressDialog::OnBytes)
     ON_MESSAGE(WM_OZ_COMP_COMPLETE, &CCompressDialog::OnComplete)
+    ON_WM_CTLCOLOR()
+    ON_NOTIFY(NM_CUSTOMDRAW, IDC_COMPRESS_PROGRESS, &CCompressDialog::OnProgressCustomDraw)
 END_MESSAGE_MAP()
 
 void CCompressDialog::DoDataExchange(CDataExchange* pDX) {
@@ -68,6 +70,10 @@ void CCompressDialog::DoDataExchange(CDataExchange* pDX) {
 
 BOOL CCompressDialog::OnInitDialog() {
     CDialogEx::OnInitDialog();
+
+    if (openzip::dark_theme::IsDarkModeActive()) {
+        openzip::dark_theme::EnableForWindow(GetSafeHwnd());
+    }
 
     // Apply localized caption + labels at runtime.
     CString s;
@@ -127,4 +133,22 @@ LRESULT CCompressDialog::OnComplete(WPARAM wp, LPARAM) {
     if (worker_.joinable()) worker_.join();
     EndDialog(final_result_ == openzip::Compressor::Result::Success ? IDOK : IDABORT);
     return 0;
+}
+
+HBRUSH CCompressDialog::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor) {
+    UINT msg;
+    switch (nCtlColor) {
+        case CTLCOLOR_EDIT:   msg = WM_CTLCOLOREDIT;   break;
+        case CTLCOLOR_STATIC: msg = WM_CTLCOLORSTATIC; break;
+        case CTLCOLOR_BTN:    msg = WM_CTLCOLORBTN;    break;
+        default:              msg = WM_CTLCOLORDLG;    break;
+    }
+    if (HBRUSH b = openzip::dark_theme::OnCtlColor(
+            pWnd->GetSafeHwnd(), pDC->GetSafeHdc(), msg))
+        return b;
+    return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
+}
+
+void CCompressDialog::OnProgressCustomDraw(NMHDR* hdr, LRESULT* result) {
+    *result = openzip::dark_theme::OnProgressCustomDraw(hdr);
 }
