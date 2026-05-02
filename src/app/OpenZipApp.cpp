@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "OpenZipApp.h"
 
+#include "ArchiveBrowserDialog.h"
 #include "CommandLine.h"
 #include "CompressDialog.h"
 #include "CompressOptionsDialog.h"
@@ -39,8 +40,20 @@ void ProcessOne(const std::wstring& raw_cmdline) {
 
     if (cl.kind == openzip::JobKind::Extract) {
         // ── Extract job ────────────────────────────────────────────
-        CExtractDialog dlg(cl);
-        dlg.DoModal();
+        if (cl.show_browser) {
+            // File-association double-click: show archive contents browser first.
+            CArchiveBrowserDialog browser;
+            browser.zip_path = cl.zip_path;
+            if (browser.DoModal() == IDOK) {
+                // User chose "Extract All" → run the extract dialog.
+                CExtractDialog extract(cl);
+                extract.DoModal();
+            }
+            // IDCANCEL: user closed the browser; nothing more to do.
+        } else {
+            CExtractDialog dlg(cl);
+            dlg.DoModal();
+        }
 
     } else {
         // ── Compress job ───────────────────────────────────────────

@@ -35,6 +35,7 @@ CommandLine ParseCommandLine(const wchar_t* cmdline) {
 
     fs::path explicit_target;
     Mode mode = Mode::Default;
+    bool any_extract_flag_seen = false;  // true if --extract/--here/--folder/--target was seen
 
     // argv[0] is the exe path; skip it.
     for (int i = 1; i < argc; ++i) {
@@ -82,10 +83,12 @@ CommandLine ParseCommandLine(const wchar_t* cmdline) {
 
         // ── Extract flags ──────────────────────────────────────────
         } else if (a == L"--extract") {
+            any_extract_flag_seen = true;
             const wchar_t* v = need_value(L"--extract");
             if (!v) break;
             c.zip_path = v;
         } else if (a == L"--target") {
+            any_extract_flag_seen = true;
             const wchar_t* v = need_value(L"--target");
             if (!v) break;
             explicit_target = v;
@@ -99,8 +102,10 @@ CommandLine ParseCommandLine(const wchar_t* cmdline) {
             c.threads = ::_wtoi(v);
             if (c.threads < 0) c.threads = 0;
         } else if (a == L"--here") {
+            any_extract_flag_seen = true;
             mode = Mode::Here;
         } else if (a == L"--folder") {
+            any_extract_flag_seen = true;
             mode = Mode::Folder;
 
         // ── Unknown flag or positional arg ─────────────────────────
@@ -151,6 +156,13 @@ CommandLine ParseCommandLine(const wchar_t* cmdline) {
 
     c.zip_path   = fs::absolute(c.zip_path);
     c.target_dir = ResolveTarget(c.zip_path, explicit_target, mode);
+
+    // Show the archive browser when the user double-clicked the zip (positional-only),
+    // i.e. no explicit extract/placement flags were supplied.
+    if (!any_extract_flag_seen) {
+        c.show_browser = true;
+    }
+
     return c;
 }
 

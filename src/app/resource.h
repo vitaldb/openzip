@@ -95,3 +95,14 @@
 #define IDS_LABEL_COMPRESS_PASSWORD_CFM 4070
 #define IDS_CHECK_COMPRESS_SHOW_PW      4071
 #define IDS_LABEL_COMPRESS_READY        4072
+
+// Archive browser dialog (Phase 9)
+#define IDD_ARCHIVE_BROWSER             142
+#define IDC_BROWSE_ZIPPATH              2050
+#define IDC_BROWSE_LIST                 2051
+#define IDC_BROWSE_EXTRACT_ALL          2052
+#define IDS_DIALOG_BROWSE_TITLE         4080
+#define IDS_LABEL_BROWSE_NAME           4081
+#define IDS_LABEL_BROWSE_SIZE           4082
+#define IDS_BUTTON_EXTRACT_ALL          4084
+#define IDS_BUTTON_CLOSE                4085

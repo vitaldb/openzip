@@ -41,8 +41,9 @@ struct CommandLine {
     int compress_level          = 6;       // matches Level::Normal
     std::wstring compress_encoding = L"utf8";
 
-    bool show_help = false;
-    bool valid     = true;
+    bool show_help    = false;
+    bool show_browser = false;  // true when invoked with bare zip path (file-association double-click)
+    bool valid        = true;
     std::wstring error;
 };
 

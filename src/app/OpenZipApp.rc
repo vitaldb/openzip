@@ -10,6 +10,19 @@
 
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 
+IDD_ARCHIVE_BROWSER DIALOGEX 0, 0, 500, 340
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "OpenZip"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "", IDC_BROWSE_ZIPPATH, 12, 10, 476, 10, SS_NOPREFIX | SS_ENDELLIPSIS
+    CONTROL         "", IDC_BROWSE_LIST, "SysListView32",
+                    LVS_REPORT | LVS_SHOWSELALWAYS | LVS_AUTOARRANGE | WS_BORDER | WS_TABSTOP,
+                    12, 26, 476, 280
+    DEFPUSHBUTTON   "Extract All", IDC_BROWSE_EXTRACT_ALL, 348, 316, 68, 16
+    PUSHBUTTON      "Close",       IDCANCEL,                424, 316, 64, 16
+END
+
 IDD_COMPRESS_OPTIONS DIALOGEX 0, 0, 320, 220
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "OpenZip"
@@ -137,6 +150,12 @@ BEGIN
     IDS_LABEL_COMPRESS_PASSWORD_CFM "Confirm"
     IDS_CHECK_COMPRESS_SHOW_PW      "Show"
     IDS_LABEL_COMPRESS_READY        "Ready..."
+
+    IDS_DIALOG_BROWSE_TITLE         "OpenZip — Archive Contents"
+    IDS_LABEL_BROWSE_NAME           "Name"
+    IDS_LABEL_BROWSE_SIZE           "Size"
+    IDS_BUTTON_EXTRACT_ALL          "Extract All"
+    IDS_BUTTON_CLOSE                "Close"
 END
 
 /////////////////////////////////////////////////////////////////////////////
@@ -185,6 +204,12 @@ BEGIN
     IDS_LABEL_COMPRESS_PASSWORD_CFM "다시 입력"
     IDS_CHECK_COMPRESS_SHOW_PW      "표시"
     IDS_LABEL_COMPRESS_READY        "준비 중..."
+
+    IDS_DIALOG_BROWSE_TITLE         "OpenZip — 압축 파일 내용"
+    IDS_LABEL_BROWSE_NAME           "이름"
+    IDS_LABEL_BROWSE_SIZE           "크기"
+    IDS_BUTTON_EXTRACT_ALL          "모두 풀기"
+    IDS_BUTTON_CLOSE                "닫기"
 END
 
 /////////////////////////////////////////////////////////////////////////////
