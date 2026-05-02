@@ -52,8 +52,6 @@ build/
 *.appxbundle
 *.cab
 msix/staging/
-msix/Assets/*.png
-!msix/Assets/.gitkeep
 
 # vcpkg
 vcpkg_installed/

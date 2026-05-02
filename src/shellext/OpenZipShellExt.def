@@ -1,0 +1,4 @@
+LIBRARY OpenZipShellExt
+EXPORTS
+    DllGetClassObject       PRIVATE
+    DllCanUnloadNow         PRIVATE
