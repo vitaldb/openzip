@@ -45,8 +45,11 @@ void ProcessOne(const std::wstring& raw_cmdline) {
             CArchiveBrowserDialog browser;
             browser.zip_path = cl.zip_path;
             if (browser.DoModal() == IDOK) {
-                // User chose "Extract All" → run the extract dialog.
-                CExtractDialog extract(cl);
+                // The browser already prompted for destination + filter.
+                openzip::CommandLine cmd_with_target = cl;
+                cmd_with_target.target_dir = browser.chosen_extract_dir;
+                CExtractDialog extract(cmd_with_target);
+                extract.include_filter = browser.chosen_filter_names;
                 extract.DoModal();
             }
             // IDCANCEL: user closed the browser; nothing more to do.

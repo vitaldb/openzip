@@ -106,3 +106,5 @@
 #define IDS_LABEL_BROWSE_SIZE           4082
 #define IDS_BUTTON_EXTRACT_ALL          4084
 #define IDS_BUTTON_CLOSE                4085
+#define IDS_BUTTON_EXTRACT_SELECTED     4086
+#define IDS_PICK_DESTINATION            4087

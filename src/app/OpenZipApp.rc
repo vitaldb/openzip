@@ -155,7 +155,9 @@ BEGIN
     IDS_LABEL_BROWSE_NAME           "Name"
     IDS_LABEL_BROWSE_SIZE           "Size"
     IDS_BUTTON_EXTRACT_ALL          "Extract All"
+    IDS_BUTTON_EXTRACT_SELECTED     "Extract"
     IDS_BUTTON_CLOSE                "Close"
+    IDS_PICK_DESTINATION            "Choose destination folder"
 END
 
 /////////////////////////////////////////////////////////////////////////////
@@ -209,7 +211,9 @@ BEGIN
     IDS_LABEL_BROWSE_NAME           "이름"
     IDS_LABEL_BROWSE_SIZE           "크기"
     IDS_BUTTON_EXTRACT_ALL          "모두 풀기"
+    IDS_BUTTON_EXTRACT_SELECTED     "압축 풀기"
     IDS_BUTTON_CLOSE                "닫기"
+    IDS_PICK_DESTINATION            "압축을 풀 폴더 선택"
 END
 
 /////////////////////////////////////////////////////////////////////////////

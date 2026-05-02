@@ -80,6 +80,7 @@ UINT CExtractDialog::WorkerProc(LPVOID p) {
     auto* dlg = static_cast<CExtractDialog*>(p);
     openzip::Extractor::Options opts;
     opts.concurrency = dlg->cmd_.threads;
+    opts.include     = dlg->include_filter;
     auto r = openzip::Extractor::Extract(dlg->cmd_.zip_path, dlg->cmd_.target_dir, *dlg, opts);
     dlg->result_ = r;
     return 0;

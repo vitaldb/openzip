@@ -66,6 +66,12 @@ public:
         // Encrypted archives always run single-threaded regardless (preserves
         // password-retry behavior).
         int concurrency = 0;
+
+        // If non-empty, only entries whose decoded `name` is in this set are
+        // extracted; all other entries are skipped. Empty (default) = extract
+        // everything. Used by the archive browser dialog to extract a single
+        // file or a selected subset.
+        std::vector<std::wstring> include;
     };
 
     // List all entries without extracting. Returns an empty vector on open failure.
