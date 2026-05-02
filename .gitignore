@@ -1,3 +1,6 @@
+# Worktrees (subagent-driven development)
+.worktrees/
+
 # Visual Studio
 .vs/
 *.suo
