@@ -69,7 +69,11 @@ void CCompressDialog::DoDataExchange(CDataExchange* pDX) {
 BOOL CCompressDialog::OnInitDialog() {
     CDialogEx::OnInitDialog();
 
-    SetWindowText(L"OpenZip — 압축");
+    // Apply localized caption + labels at runtime.
+    CString s;
+    s.LoadString(IDS_DIALOG_COMPRESS_TITLE);  SetWindowText(s);
+    s.LoadString(IDS_LABEL_COMPRESS_READY);   SetDlgItemText(IDC_COMPRESS_CURRENT, s);
+    s.LoadString(IDS_BUTTON_CANCEL);          SetDlgItemText(IDC_COMPRESS_CANCEL, s);
 
     if (auto* pb = static_cast<CProgressCtrl*>(GetDlgItem(IDC_COMPRESS_PROGRESS))) {
         pb->SetRange32(0, 1000);
@@ -77,7 +81,6 @@ BOOL CCompressDialog::OnInitDialog() {
     }
 
     if (batch_total > 1) {
-        CString s;
         s.Format(L"%d / %d", batch_index + 1, batch_total);
         SetDlgItemText(IDC_COMPRESS_QUEUE, s);
     }
@@ -94,7 +97,9 @@ void CCompressDialog::RunWorker() {
 
 void CCompressDialog::OnCancel() {
     cancel_.store(true);
-    SetDlgItemText(IDC_COMPRESS_CANCEL, L"취소 중...");
+    CString cancelling;
+    cancelling.LoadString(IDS_LABEL_CANCELLING);
+    SetDlgItemText(IDC_COMPRESS_CANCEL, cancelling);
     if (CWnd* btn = GetDlgItem(IDC_COMPRESS_CANCEL))
         btn->EnableWindow(FALSE);
     // Don't call base OnCancel — let WM_OZ_COMP_COMPLETE close the dialog

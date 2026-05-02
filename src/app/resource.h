@@ -43,6 +43,13 @@
 #define IDC_COMPRESS_PASSWORD_CFM       2009
 #define IDC_COMPRESS_SHOW_PW            2010
 
+// Static labels — distinct IDs so OnInitDialog can localize them.
+#define IDC_LABEL_COMPRESS_OUTNAME      2030
+#define IDC_LABEL_COMPRESS_OUTDIR       2031
+#define IDC_GROUP_COMPRESS_LEVEL        2032
+#define IDC_LABEL_COMPRESS_PASSWORD     2033
+#define IDC_LABEL_COMPRESS_PASSWORD_CFM 2034
+
 // ─── Compress progress dialog controls ──────────────────────────
 #define IDC_COMPRESS_CURRENT            2020
 #define IDC_COMPRESS_PROGRESS           2021
@@ -73,3 +80,18 @@
 #define IDS_HELP_TEXT                   4050
 #define IDS_HELP_TITLE                  4051
 #define IDS_ERROR_TITLE                 4052
+
+// Compress dialogs (Phase 3)
+#define IDS_DIALOG_COMPRESS_OPT_TITLE   4060
+#define IDS_DIALOG_COMPRESS_TITLE       4061
+#define IDS_LABEL_COMPRESS_OUTNAME      4062
+#define IDS_LABEL_COMPRESS_OUTDIR       4063
+#define IDS_GROUP_COMPRESS_LEVEL        4064
+#define IDS_RADIO_COMPRESS_LEVEL_STORE  4065
+#define IDS_RADIO_COMPRESS_LEVEL_FAST   4066
+#define IDS_RADIO_COMPRESS_LEVEL_NORMAL 4067
+#define IDS_RADIO_COMPRESS_LEVEL_MAX    4068
+#define IDS_LABEL_COMPRESS_PASSWORD     4069
+#define IDS_LABEL_COMPRESS_PASSWORD_CFM 4070
+#define IDS_CHECK_COMPRESS_SHOW_PW      4071
+#define IDS_LABEL_COMPRESS_READY        4072

@@ -27,8 +27,21 @@ void CCompressOptionsDialog::DoDataExchange(CDataExchange* pDX) {
 BOOL CCompressOptionsDialog::OnInitDialog() {
     CDialogEx::OnInitDialog();
 
-    // Apply localized caption/labels at runtime (same pattern as ExtractDialog).
-    SetWindowText(L"OpenZip — 압축 옵션");  // "OpenZip — 압축 옵션"
+    // Apply localized caption + labels at runtime (same pattern as ExtractDialog).
+    CString s;
+    s.LoadString(IDS_DIALOG_COMPRESS_OPT_TITLE);   SetWindowText(s);
+    s.LoadString(IDS_LABEL_COMPRESS_OUTNAME);      SetDlgItemText(IDC_LABEL_COMPRESS_OUTNAME, s);
+    s.LoadString(IDS_LABEL_COMPRESS_OUTDIR);       SetDlgItemText(IDC_LABEL_COMPRESS_OUTDIR, s);
+    s.LoadString(IDS_GROUP_COMPRESS_LEVEL);        SetDlgItemText(IDC_GROUP_COMPRESS_LEVEL, s);
+    s.LoadString(IDS_RADIO_COMPRESS_LEVEL_STORE);  SetDlgItemText(IDC_COMPRESS_LEVEL_STORE, s);
+    s.LoadString(IDS_RADIO_COMPRESS_LEVEL_FAST);   SetDlgItemText(IDC_COMPRESS_LEVEL_FAST, s);
+    s.LoadString(IDS_RADIO_COMPRESS_LEVEL_NORMAL); SetDlgItemText(IDC_COMPRESS_LEVEL_NORMAL, s);
+    s.LoadString(IDS_RADIO_COMPRESS_LEVEL_MAX);    SetDlgItemText(IDC_COMPRESS_LEVEL_MAX, s);
+    s.LoadString(IDS_LABEL_COMPRESS_PASSWORD);     SetDlgItemText(IDC_LABEL_COMPRESS_PASSWORD, s);
+    s.LoadString(IDS_LABEL_COMPRESS_PASSWORD_CFM); SetDlgItemText(IDC_LABEL_COMPRESS_PASSWORD_CFM, s);
+    s.LoadString(IDS_CHECK_COMPRESS_SHOW_PW);      SetDlgItemText(IDC_COMPRESS_SHOW_PW, s);
+    s.LoadString(IDS_BUTTON_OK);                   SetDlgItemText(IDOK, s);
+    s.LoadString(IDS_BUTTON_CANCEL);               SetDlgItemText(IDCANCEL, s);
 
     outname_ = default_output_name.c_str();
     outdir_  = default_output_dir.c_str();
@@ -70,7 +83,7 @@ void CCompressOptionsDialog::OnBrowse() {
     BROWSEINFOW bi{};
     bi.hwndOwner = GetSafeHwnd();
     bi.ulFlags   = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
-    bi.lpszTitle = L"입력 폴더 선택";  // "출력 폴더 선택"
+    bi.lpszTitle = L"출력 폴더 선택";  // "Select output folder"
     LPITEMIDLIST pidl = ::SHBrowseForFolderW(&bi);
     if (!pidl) return;
     wchar_t path[MAX_PATH];

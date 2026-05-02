@@ -129,9 +129,12 @@ CommandLine ParseCommandLine(const wchar_t* cmdline) {
             c.error = L"--compress requires at least one --item";
             return c;
         }
-        if (c.compress_output.empty() && c.compress_mode != CompressMode::Each) {
+        // Bundle is the only mode that requires a pre-resolved --output:
+        //   each   → derives <stem>.zip per item
+        //   prompt → user picks the path in the options dialog
+        if (c.compress_output.empty() && c.compress_mode == CompressMode::Bundle) {
             c.valid = false;
-            c.error = L"--compress requires --output (or --mode each)";
+            c.error = L"--compress --mode bundle requires --output";
             return c;
         }
         if (!c.compress_output.empty())
