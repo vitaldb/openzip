@@ -1,0 +1,77 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.sdf
+*.db
+*.opendb
+*.aps
+*.tlog
+*.idb
+*.pidb
+*.svclog
+
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+ARM/
+ARM64/
+build/
+
+# Compile artifacts
+*.obj
+*.pch
+*.pdb
+*.ipdb
+*.iobj
+*.ilk
+*.tlb
+*.tli
+*.tlh
+*.exp
+*.lib
+*.dll
+*.exe
+*.rsp
+*.sbr
+*.tmp
+
+# Packaging artifacts
+*.msi
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.cab
+msix/staging/
+msix/Assets/*.png
+!msix/Assets/.gitkeep
+
+# vcpkg
+vcpkg_installed/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE/editor
+.vscode/
+.idea/
+.claude/
+
+# Test archives (not committed; see tests/test_archives/README.md)
+tests/test_archives/*.zip
+
+# OS junk
+Thumbs.db
+.DS_Store
+desktop.ini

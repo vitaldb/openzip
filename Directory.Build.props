@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <!-- Shared settings for all OpenZip projects -->
+  <PropertyGroup>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgEnabled>true</VcpkgEnabled>
+    <VcpkgManifestRoot>$(MSBuildThisFileDirectory)</VcpkgManifestRoot>
+    <VcpkgTriplet>x64-windows-static</VcpkgTriplet>
+    <VcpkgInstalledDir>$(MSBuildThisFileDirectory)vcpkg_installed\</VcpkgInstalledDir>
+    <VcpkgIncludeDir>$(VcpkgInstalledDir)$(VcpkgTriplet)\include\</VcpkgIncludeDir>
+    <VcpkgIncludeDirMinizip>$(VcpkgInstalledDir)$(VcpkgTriplet)\include\minizip-ng\</VcpkgIncludeDirMinizip>
+    <VcpkgLibDir Condition="'$(Configuration)' == 'Debug'">$(VcpkgInstalledDir)$(VcpkgTriplet)\debug\lib\</VcpkgLibDir>
+    <VcpkgLibDir Condition="'$(Configuration)' != 'Debug'">$(VcpkgInstalledDir)$(VcpkgTriplet)\lib\</VcpkgLibDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(VcpkgIncludeDir);$(VcpkgIncludeDirMinizip);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(VcpkgLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>
