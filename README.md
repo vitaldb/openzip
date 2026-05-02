@@ -1,17 +1,19 @@
 # OpenZip
 
-A minimal, fast ZIP extractor for Windows 11 with native Explorer context-menu integration.
+A minimal, fast ZIP utility for Windows with native Explorer context-menu integration.
 
-> 한국어 ZIP 파일 (CP949)을 깨짐 없이 풀어주는 가벼운 Windows 11 압축 해제기.
+> 한국어 ZIP 파일 (CP949)을 깨짐 없이 다루는 가벼운 Windows 압축/해제기.
 
 ## Features
 
-- **Modern context menu** — "Extract Here" / "Extract to <foldername>\" appear in Win11's modern right-click menu (not the legacy "Show more options" submenu).
-- **Correct Korean filenames** — Robust CP949 / UTF-8 detection, no mojibake.
-- **Password support** — Both ZipCrypto and AES-256 encrypted archives.
-- **Fast** — minizip-ng + zlib-ng under the hood, single-instance queue prevents disk thrash.
-- **Safe** — Zip-slip, symlink, decompression-bomb, and Windows reserved-name protections built in.
-- **Light** — ZIP only; no compression, no preview UI, no telemetry, no auto-update.
+- **Modern Win11 + classic Win10 context menus** — extract and compress verbs appear in Win11's modern right-click menu and (on Win10 1903+) in the classic shell menu. The classic handler self-suppresses on Win11 to avoid duplication.
+- **Compress from Explorer** — right-click any file/folder → OpenZip → compress to `<name>.zip`, compress each separately, or open the options dialog (level / password / output path).
+- **Correct Korean filenames** — robust CP949 / UTF-8 detection on extract; selectable UTF-8 (default) or CP949 output on compress.
+- **Password support** — read both ZipCrypto and AES-256; write AES-256 encrypted archives when a password is set.
+- **Dark mode** — all dialogs follow the OS theme on Win11.
+- **Fast** — minizip-ng + zlib-ng under the hood, parallel extraction, single-instance queue prevents disk thrash.
+- **Safe** — Zip-slip, symlink, decompression-bomb, and Windows reserved-name protections built in. Compression writes atomically (`.partial` → rename) so a cancel or crash never leaves a half-written archive.
+- **Light** — ZIP only; no preview UI, no telemetry, no auto-update.
 
 ## Install
 
@@ -55,20 +57,27 @@ Prerequisites:
 git clone https://github.com/vitaldb/openzip.git
 cd openzip
 msbuild OpenZip.sln /p:Configuration=Release /p:Platform=x64
-python msix\build_msix.py 0.1.0
+python msix\build_msix.py 0.3.0
 # Sideload (Developer Mode required):
 Add-AppxPackage -Register .\msix\staging\AppxManifest.xml
+```
+
+To run the unit tests:
+
+```powershell
+.\x64\Debug\CoreTests.exe
 ```
 
 ## Architecture
 
 | Component | Type | Purpose |
 |---|---|---|
-| `OpenZipCore` | static lib | Extraction engine, filename decoding, path validation |
-| `OpenZipApp` | MFC EXE | Progress UI, password prompt, conflict dialog |
-| `OpenZipShellExt` | Win32 DLL | `IExplorerCommand` for Win11 modern context menu |
+| `OpenZipCore` | static lib | Extraction + compression engine, filename decoding, path validation |
+| `OpenZipApp` | MFC EXE | Progress UI, password prompt, conflict and compress-options dialogs, dark-mode helper |
+| `OpenZipShellExt` | Win32 DLL | `IExplorerCommand` for Win11 modern context menu (extract + compress) |
+| `OpenZipShellExtClassic` | Win32 DLL | `IContextMenu` + `IShellExtInit` for Win10 classic menu (Win11 OS-gate self-suppresses) |
 
-See [`plan.md`](./plan.md) for the full design rationale.
+See [`plan.md`](./plan.md) for the original design rationale and [`docs/superpowers/specs/`](./docs/superpowers/specs/) for v0.3's compress + Win10 spec.
 
 ## License
 
