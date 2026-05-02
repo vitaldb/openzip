@@ -4,11 +4,13 @@
   "description": "Minimal ZIP extractor for Windows 11 with Explorer context-menu integration",
   "homepage": "https://github.com/vitaldb/openzip",
   "license": "MIT",
+  "builtin-baseline": "544a4c5c297e60e4ac4a5a1810df66748d908869",
   "dependencies": [
     {
       "name": "minizip-ng",
       "default-features": false,
       "features": ["zlib", "pkcrypt", "wzaes"]
-    }
+    },
+    "gtest"
   ]
 }

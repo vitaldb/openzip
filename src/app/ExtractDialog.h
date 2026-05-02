@@ -4,10 +4,12 @@
 #include "resource.h"
 #include "CommandLine.h"
 #include "core/extractor.h"
+#include "dark_theme.h"
 
 #include <atomic>
 #include <mutex>
 #include <string>
+#include <vector>
 
 // Custom messages — used by the worker thread to bounce calls onto the UI thread.
 #define WM_OPENZIP_PROMPT_PASSWORD (WM_USER + 100)
@@ -25,6 +27,11 @@ public:
 
     openzip::Extractor::Result result() const { return result_; }
 
+    // Optional per-extract include filter. Empty (default) = extract all
+    // entries. Non-empty = only extract entries whose decoded name is in the
+    // list. Used by CArchiveBrowserDialog for selective / single-file extract.
+    std::vector<std::wstring> include_filter;
+
 protected:
     void DoDataExchange(CDataExchange* pDX) override;
     BOOL OnInitDialog() override;
@@ -35,6 +42,8 @@ protected:
     afx_msg LRESULT OnEntryStartMsg(WPARAM wp, LPARAM lp);
     afx_msg LRESULT OnBytesMsg(WPARAM wp, LPARAM lp);
     afx_msg LRESULT OnCompleteMsg(WPARAM wp, LPARAM lp);
+    afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+    afx_msg void OnProgressCustomDraw(NMHDR* hdr, LRESULT* result);
     DECLARE_MESSAGE_MAP()
 
     // ProgressCallback (worker-thread side).

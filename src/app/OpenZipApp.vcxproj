@@ -89,23 +89,31 @@
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="OpenZipApp.h" />
+    <ClInclude Include="ArchiveBrowserDialog.h" />
     <ClInclude Include="CommandLine.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="ExtractDialog.h" />
     <ClInclude Include="PasswordDialog.h" />
     <ClInclude Include="ConflictDialog.h" />
     <ClInclude Include="SingleInstance.h" />
+    <ClInclude Include="CompressOptionsDialog.h" />
+    <ClInclude Include="CompressDialog.h" />
+    <ClInclude Include="dark_theme.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="OpenZipApp.cpp" />
+    <ClCompile Include="ArchiveBrowserDialog.cpp" />
     <ClCompile Include="CommandLine.cpp" />
     <ClCompile Include="ExtractDialog.cpp" />
     <ClCompile Include="PasswordDialog.cpp" />
     <ClCompile Include="ConflictDialog.cpp" />
     <ClCompile Include="SingleInstance.cpp" />
+    <ClCompile Include="CompressOptionsDialog.cpp" />
+    <ClCompile Include="CompressDialog.cpp" />
+    <ClCompile Include="dark_theme.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="OpenZipApp.rc" />

@@ -1,0 +1,4 @@
+#include "resource.h"
+#include <windows.h>
+
+IDI_OPENZIP_CLASSIC ICON DISCARDABLE "icon.ico"

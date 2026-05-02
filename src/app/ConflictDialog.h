@@ -3,6 +3,7 @@
 #include "stdafx.h"
 #include "resource.h"
 #include "core/extractor.h"
+#include "dark_theme.h"
 
 class CConflictDialog : public CDialogEx {
     DECLARE_DYNAMIC(CConflictDialog)
@@ -22,6 +23,7 @@ protected:
     afx_msg void OnSkip();
     afx_msg void OnRename();
     afx_msg void OnCancel();
+    afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 
     DECLARE_MESSAGE_MAP()
 

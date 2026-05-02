@@ -7,11 +7,12 @@
          xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
          xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
          xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
-         IgnorableNamespaces="uap uap3 rescap desktop desktop4 desktop5 com">
+         xmlns:desktop9="http://schemas.microsoft.com/appx/manifest/desktop/windows10/9"
+         IgnorableNamespaces="uap uap3 rescap desktop desktop4 desktop5 com desktop9">
 
   <Identity Name="Hyung-ChulLee.OpenZip"
             Publisher="CN=F654AA56-4E26-4CE5-B9F5-949930D6F0EE"
-            Version="0.2.0.0"
+            Version="0.3.0.0"
             ProcessorArchitecture="x64" />
 
   <Properties>
@@ -22,7 +23,7 @@
   </Properties>
 
   <Dependencies>
-    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.18362.0" MaxVersionTested="10.0.26100.0" />
   </Dependencies>
 
   <Resources>
@@ -58,23 +59,62 @@
         <!-- COM server for shell extension -->
         <com:Extension Category="windows.comServer">
           <com:ComServer>
+            <!-- Modern shell ext (out-of-process surrogate) -->
             <com:SurrogateServer DisplayName="OpenZip Shell Extension">
+              <!-- Extract parent CLSID (existing) -->
               <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C"
                          Path="OpenZipShellExt.dll"
+                         ThreadingModel="STA" />
+              <!-- Compress parent CLSID (Phase 4) -->
+              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00"
+                         Path="OpenZipShellExt.dll"
+                         ThreadingModel="STA" />
+            </com:SurrogateServer>
+            <!-- Classic shell ext for Win10 (Phase 5) — registered via surrogate so
+                 the CLSID lands in the package's virtual registry; the DLL is loaded
+                 in-process by Explorer on Win10 via the desktop9 handler registration -->
+            <com:SurrogateServer DisplayName="OpenZip Classic Shell Extension">
+              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000"
+                         Path="OpenZipShellExtClassic.dll"
                          ThreadingModel="STA" />
             </com:SurrogateServer>
           </com:ComServer>
         </com:Extension>
 
-        <!-- Modern Win11 context menu for .zip -->
+        <!-- Modern Win11 context menu verbs -->
         <desktop4:Extension Category="windows.fileExplorerContextMenus">
           <desktop4:FileExplorerContextMenus>
+            <!-- .zip files: extract and compress -->
             <desktop5:ItemType Type=".zip">
-              <desktop5:Verb Id="OpenZip"
+              <desktop5:Verb Id="OpenZipExtract"
                              Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+              <desktop5:Verb Id="OpenZipCompress"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00" />
+            </desktop5:ItemType>
+            <!-- Any file: compress -->
+            <desktop5:ItemType Type="*">
+              <desktop5:Verb Id="OpenZipCompress"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00" />
+            </desktop5:ItemType>
+            <!-- Folders: compress -->
+            <desktop5:ItemType Type="Directory">
+              <desktop5:Verb Id="OpenZipCompress"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00" />
             </desktop5:ItemType>
           </desktop4:FileExplorerContextMenus>
         </desktop4:Extension>
+
+        <!-- Classic Win10 context menu handler (IContextMenu / Win11 21H2+ manifest registration) -->
+        <desktop9:Extension Category="windows.fileExplorerClassicContextMenuHandler">
+          <desktop9:FileExplorerClassicContextMenuHandler>
+            <desktop9:ExtensionHandler Type="*"
+                                       Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />
+            <desktop9:ExtensionHandler Type=".zip"
+                                       Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />
+            <desktop9:ExtensionHandler Type="Directory"
+                                       Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />
+          </desktop9:FileExplorerClassicContextMenuHandler>
+        </desktop9:Extension>
       </Extensions>
     </Application>
   </Applications>

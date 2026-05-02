@@ -2,6 +2,7 @@
 
 #include "stdafx.h"
 #include "resource.h"
+#include "dark_theme.h"
 
 class CPasswordDialog : public CDialogEx {
     DECLARE_DYNAMIC(CPasswordDialog)
@@ -17,6 +18,7 @@ protected:
     void DoDataExchange(CDataExchange* pDX) override;
     BOOL OnInitDialog() override;
     void OnOK() override;
+    afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 
     DECLARE_MESSAGE_MAP()
 

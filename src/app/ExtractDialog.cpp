@@ -14,6 +14,8 @@ BEGIN_MESSAGE_MAP(CExtractDialog, CDialogEx)
     ON_MESSAGE(WM_OPENZIP_ENTRY_START,     &CExtractDialog::OnEntryStartMsg)
     ON_MESSAGE(WM_OPENZIP_BYTES,           &CExtractDialog::OnBytesMsg)
     ON_MESSAGE(WM_OPENZIP_COMPLETE,        &CExtractDialog::OnCompleteMsg)
+    ON_WM_CTLCOLOR()
+    ON_NOTIFY(NM_CUSTOMDRAW, IDC_PROGRESS_OVERALL, &CExtractDialog::OnProgressCustomDraw)
 END_MESSAGE_MAP()
 
 CExtractDialog::CExtractDialog(const openzip::CommandLine& cmd, CWnd* parent)
@@ -25,6 +27,10 @@ void CExtractDialog::DoDataExchange(CDataExchange* pDX) {
 
 BOOL CExtractDialog::OnInitDialog() {
     CDialogEx::OnInitDialog();
+
+    if (openzip::dark_theme::IsDarkModeActive()) {
+        openzip::dark_theme::EnableForWindow(GetSafeHwnd());
+    }
 
     CString s;
     s.LoadString(IDS_DIALOG_EXTRACT_TITLE);  SetWindowText(s);
@@ -74,6 +80,7 @@ UINT CExtractDialog::WorkerProc(LPVOID p) {
     auto* dlg = static_cast<CExtractDialog*>(p);
     openzip::Extractor::Options opts;
     opts.concurrency = dlg->cmd_.threads;
+    opts.include     = dlg->include_filter;
     auto r = openzip::Extractor::Extract(dlg->cmd_.zip_path, dlg->cmd_.target_dir, *dlg, opts);
     dlg->result_ = r;
     return 0;
@@ -210,4 +217,22 @@ LRESULT CExtractDialog::OnCompleteMsg(WPARAM wp, LPARAM) {
     result_ = r;
     EndDialog(r == openzip::Extractor::Result::Success ? IDOK : IDCANCEL);
     return 0;
+}
+
+HBRUSH CExtractDialog::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor) {
+    UINT msg;
+    switch (nCtlColor) {
+        case CTLCOLOR_EDIT:   msg = WM_CTLCOLOREDIT;   break;
+        case CTLCOLOR_STATIC: msg = WM_CTLCOLORSTATIC; break;
+        case CTLCOLOR_BTN:    msg = WM_CTLCOLORBTN;    break;
+        default:              msg = WM_CTLCOLORDLG;    break;
+    }
+    if (HBRUSH b = openzip::dark_theme::OnCtlColor(
+            pWnd->GetSafeHwnd(), pDC->GetSafeHdc(), msg))
+        return b;
+    return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
+}
+
+void CExtractDialog::OnProgressCustomDraw(NMHDR* hdr, LRESULT* result) {
+    *result = openzip::dark_theme::OnProgressCustomDraw(hdr);
 }

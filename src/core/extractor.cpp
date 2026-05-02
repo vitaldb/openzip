@@ -8,6 +8,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <system_error>
 #include <thread>
 #include <vector>
@@ -176,7 +177,8 @@ Extractor::Result ExtractSequential(const fs::path& zip_path,
                                     const fs::path& target_dir,
                                     std::vector<Extractor::Entry>& entries,
                                     uint64_t total_uncompressed,
-                                    Extractor::ProgressCallback& cb) {
+                                    Extractor::ProgressCallback& cb,
+                                    const std::set<std::wstring>& include_set) {
     using Result = Extractor::Result;
 
     ZipReaderHandle reader;
@@ -201,6 +203,13 @@ Extractor::Result ExtractSequential(const fs::path& zip_path,
         if (cb.ShouldCancel()) return Result::Cancelled;
 
         const Extractor::Entry& e = entries[idx];
+
+        // Skip entries not in the include filter (when filtering is active).
+        if (!include_set.empty() && include_set.find(e.name) == include_set.end()) {
+            mz_zip_reader_goto_next_entry(reader.get());
+            continue;
+        }
+
         cb.OnEntryStart(e, idx, entries.size());
 
         ValidatedPath vp = ValidatePath(e.name, target_dir);
@@ -300,7 +309,8 @@ Extractor::Result ExtractParallel(const fs::path& zip_path,
                                   std::vector<Extractor::Entry>& entries,
                                   uint64_t total_uncompressed,
                                   Extractor::ProgressCallback& cb,
-                                  int concurrency) {
+                                  int concurrency,
+                                  const std::set<std::wstring>& include_set) {
     using Result = Extractor::Result;
 
     std::atomic<size_t> next_index{0};
@@ -347,6 +357,12 @@ Extractor::Result ExtractParallel(const fs::path& zip_path,
             }
 
             const Extractor::Entry& e = entries[claim];
+
+            // Skip entries not in the include filter (when filtering is active).
+            if (!include_set.empty() && include_set.find(e.name) == include_set.end()) {
+                continue;
+            }
+
             cb.OnEntryStart(e, claim, entries.size());
 
             ValidatedPath vp = ValidatePath(e.name, target_dir);
@@ -519,6 +535,20 @@ Extractor::Result Extractor::Extract(const fs::path& zip_path,
         return finish(Result::BombRefused);
     }
 
+    // Build the include-filter set for fast membership check inside the
+    // sequential/parallel extract loops. Empty set means "extract everything".
+    std::set<std::wstring> include_set(opts.include.begin(), opts.include.end());
+    if (!include_set.empty()) {
+        // Recompute total bytes for accurate progress when filtering.
+        uint64_t filtered_total = 0;
+        for (const auto& e : entries) {
+            if (!e.is_dir && include_set.find(e.name) != include_set.end()) {
+                filtered_total += e.uncompressed_size;
+            }
+        }
+        total_uncompressed = filtered_total;
+    }
+
     // Resolve concurrency.
     int concurrency = opts.concurrency;
     if (concurrency <= 0) {
@@ -537,8 +567,8 @@ Extractor::Result Extractor::Extract(const fs::path& zip_path,
                         entries.size() >= kParallelMinEntries;
 
     Result r = use_parallel
-        ? ExtractParallel(zip_path, target_dir, entries, total_uncompressed, cb, concurrency)
-        : ExtractSequential(zip_path, target_dir, entries, total_uncompressed, cb);
+        ? ExtractParallel(zip_path, target_dir, entries, total_uncompressed, cb, concurrency, include_set)
+        : ExtractSequential(zip_path, target_dir, entries, total_uncompressed, cb, include_set);
 
     return finish(r);
 }

@@ -11,8 +11,10 @@
 #include <Shlwapi.h>
 #include <combaseapi.h>
 #include <cstdarg>
+#include <filesystem>
 #include <new>
 #include <string>
+#include <vector>
 
 #include "resource.h"
 
@@ -79,12 +81,29 @@ constexpr GUID kCLSID_ExtractToFolder = {
     0xA8F3C7E4, 0x1B2D, 0x4F5E,
     {0x9C, 0x8A, 0x3B, 0x6D, 0x2E, 0x5F, 0x1A, 0x0E}};
 
+// Compress verb family — mirrored in AppxManifest (added in v0.3).
+constexpr GUID kCLSID_CompressParent = {
+    0xA8F3C7E4, 0x1B2D, 0x4F5E,
+    {0x9C, 0x8A, 0x3B, 0x6D, 0x2E, 0x5F, 0x1B, 0x00}};
+constexpr GUID kCLSID_CompressBundle = {
+    0xA8F3C7E4, 0x1B2D, 0x4F5E,
+    {0x9C, 0x8A, 0x3B, 0x6D, 0x2E, 0x5F, 0x1B, 0x01}};
+constexpr GUID kCLSID_CompressEach = {
+    0xA8F3C7E4, 0x1B2D, 0x4F5E,
+    {0x9C, 0x8A, 0x3B, 0x6D, 0x2E, 0x5F, 0x1B, 0x02}};
+constexpr GUID kCLSID_CompressPrompt = {
+    0xA8F3C7E4, 0x1B2D, 0x4F5E,
+    {0x9C, 0x8A, 0x3B, 0x6D, 0x2E, 0x5F, 0x1B, 0x03}};
+
 LONG g_dll_ref_count = 0;
 HMODULE g_module = nullptr;
 
 // ---------------------------------------------------------------------------
 
-enum class CmdKind { Parent, Here, Folder };
+enum class CmdKind {
+    Parent, Here, Folder,
+    CompressParent, CompressBundle, CompressEach, CompressPrompt,
+};
 
 // Get the full path of the first selected item, or empty on failure.
 std::wstring FirstSelectedPath(IShellItemArray* items) {
@@ -145,6 +164,54 @@ const wchar_t* TitleExtractHere() {
     return IsKoreanLocale() ? L"여기에 풀기" : L"Extract Here";
 }
 
+// ---------------------------------------------------------------------------
+// Compress verb title helpers
+
+const wchar_t* TitleCompressParent() { return L"OpenZip"; }
+
+const wchar_t* TitleCompressEach() {
+    return IsKoreanLocale() ? L"각각 압축" : L"Compress each separately";
+}
+
+const wchar_t* TitleCompressPrompt() {
+    return IsKoreanLocale() ? L"압축 옵션…" : L"Compress with options…";
+}
+
+std::wstring TitleCompressBundle(IShellItemArray* items) {
+    if (!items) return IsKoreanLocale() ? L"압축" : L"Compress";
+    DWORD count = 0;
+    items->GetCount(&count);
+    std::wstring base_name;
+    if (count == 1) {
+        IShellItem* it = nullptr;
+        if (SUCCEEDED(items->GetItemAt(0, &it)) && it) {
+            LPWSTR p = nullptr;
+            if (SUCCEEDED(it->GetDisplayName(SIGDN_FILESYSPATH, &p)) && p) {
+                std::wstring full(p);
+                ::CoTaskMemFree(p);
+                // Use filename() for directories (stem of "C:/foo/" is empty).
+                std::filesystem::path fsp(full);
+                base_name = fsp.stem().wstring();
+                if (base_name.empty()) base_name = fsp.filename().wstring();
+            }
+            it->Release();
+        }
+    } else {
+        IShellItem* it = nullptr;
+        if (SUCCEEDED(items->GetItemAt(0, &it)) && it) {
+            LPWSTR p = nullptr;
+            if (SUCCEEDED(it->GetDisplayName(SIGDN_FILESYSPATH, &p)) && p) {
+                base_name = std::filesystem::path(p).parent_path().filename().wstring();
+                ::CoTaskMemFree(p);
+            }
+            it->Release();
+        }
+    }
+    if (base_name.empty()) base_name = L"Archive";
+    if (IsKoreanLocale()) return L"\"" + base_name + L".zip\"으로 압축";
+    return L"Compress to \"" + base_name + L".zip\"";
+}
+
 HRESULT CopyToTaskMem(const wchar_t* src, LPWSTR* out) {
     if (!out) return E_POINTER;
     *out = nullptr;
@@ -199,6 +266,43 @@ void LaunchApp(const std::wstring& zip_path, CmdKind kind) {
     }
 }
 
+void LaunchAppCompress(const std::vector<std::wstring>& paths, CmdKind kind) {
+    std::wstring exe = AppExePath();
+    Log(L"LaunchAppCompress exe=%s paths.size=%zu kind=%d",
+        exe.c_str(), paths.size(), static_cast<int>(kind));
+    if (exe.empty() || paths.empty()) return;
+
+    std::wstring cmdline = L"\"" + exe + L"\" --compress";
+    if (kind == CmdKind::CompressBundle) {
+        std::wstring parent = std::filesystem::path(paths[0]).parent_path().wstring();
+        std::wstring base   = (paths.size() == 1)
+            ? std::filesystem::path(paths[0]).stem().wstring()
+            : std::filesystem::path(parent).filename().wstring();
+        // For a single directory selection, stem() may be empty — fall back to filename().
+        if (base.empty()) base = std::filesystem::path(paths[0]).filename().wstring();
+        if (base.empty()) base = L"Archive";
+        cmdline += L" --mode bundle --output \"" + parent + L"\\" + base + L".zip\"";
+    } else if (kind == CmdKind::CompressEach) {
+        cmdline += L" --mode each";
+    } else {
+        cmdline += L" --mode prompt";
+    }
+    for (const auto& p : paths) cmdline += L" --item \"" + p + L"\"";
+
+    Log(L"LaunchAppCompress cmdline=%s", cmdline.c_str());
+    wchar_t cwd[MAX_PATH] = L"";
+    ::SHGetFolderPathW(nullptr, CSIDL_PROFILE, nullptr, 0, cwd);
+    STARTUPINFOW si{}; si.cb = sizeof(si);
+    PROCESS_INFORMATION pi{};
+    if (::CreateProcessW(nullptr, cmdline.data(), nullptr, nullptr, FALSE,
+                         0, nullptr, *cwd ? cwd : nullptr, &si, &pi)) {
+        Log(L"LaunchAppCompress CreateProcessW ok pid=%lu", pi.dwProcessId);
+        ::CloseHandle(pi.hThread); ::CloseHandle(pi.hProcess);
+    } else {
+        Log(L"LaunchAppCompress CreateProcessW failed err=%lu", ::GetLastError());
+    }
+}
+
 // ---------------------------------------------------------------------------
 // IExplorerCommand implementation. One class, parameterized by CmdKind.
 
@@ -249,9 +353,13 @@ public:
     IFACEMETHODIMP GetCanonicalName(GUID* guid) override {
         if (!guid) return E_POINTER;
         switch (kind_) {
-            case CmdKind::Parent: *guid = kCLSID_OpenZipCommand; break;
-            case CmdKind::Here:   *guid = kCLSID_ExtractHere;    break;
-            case CmdKind::Folder: *guid = kCLSID_ExtractToFolder; break;
+            case CmdKind::Parent:         *guid = kCLSID_OpenZipCommand;  break;
+            case CmdKind::Here:           *guid = kCLSID_ExtractHere;     break;
+            case CmdKind::Folder:         *guid = kCLSID_ExtractToFolder; break;
+            case CmdKind::CompressParent: *guid = kCLSID_CompressParent;  break;
+            case CmdKind::CompressBundle: *guid = kCLSID_CompressBundle;  break;
+            case CmdKind::CompressEach:   *guid = kCLSID_CompressEach;    break;
+            case CmdKind::CompressPrompt: *guid = kCLSID_CompressPrompt;  break;
         }
         return S_OK;
     }
@@ -259,6 +367,26 @@ public:
         Log(L"GetState kind=%d items=%p okSlow=%d", static_cast<int>(kind_), items, okToBeSlow);
         if (!state) return E_POINTER;
         *state = ECS_ENABLED;
+
+        // Compress verb visibility rules
+        if (kind_ == CmdKind::CompressParent || kind_ == CmdKind::CompressBundle ||
+            kind_ == CmdKind::CompressEach   || kind_ == CmdKind::CompressPrompt) {
+            if (!items) { *state = ECS_HIDDEN; return S_OK; }
+            DWORD count = 0;
+            if (FAILED(items->GetCount(&count)) || count == 0) {
+                *state = ECS_HIDDEN; return S_OK;
+            }
+            // Hide if exactly one .zip selected — extract verb already covers it.
+            if (count == 1) {
+                std::wstring path = FirstSelectedPath(items);
+                Log(L"GetState (compress) path=%s", path.c_str());
+                if (EndsWithIgnoreCase(path, L".zip")) { *state = ECS_HIDDEN; return S_OK; }
+            }
+            *state = ECS_ENABLED;
+            return S_OK;
+        }
+
+        // Extract verb visibility rules (original logic)
         if (!items) { *state = ECS_HIDDEN; return S_OK; }
 
         DWORD count = 0;
@@ -276,7 +404,8 @@ public:
     IFACEMETHODIMP Invoke(IShellItemArray* items, IBindCtx*) override;
     IFACEMETHODIMP GetFlags(EXPCMDFLAGS* flags) override {
         if (!flags) return E_POINTER;
-        *flags = (kind_ == CmdKind::Parent) ? ECF_HASSUBCOMMANDS : ECF_DEFAULT;
+        *flags = (kind_ == CmdKind::Parent || kind_ == CmdKind::CompressParent)
+            ? ECF_HASSUBCOMMANDS : ECF_DEFAULT;
         return S_OK;
     }
     IFACEMETHODIMP EnumSubCommands(IEnumExplorerCommand** out) override;
@@ -353,24 +482,99 @@ private:
     ULONG cursor_ = 0;
 };
 
+class CompressSubCommandEnum : public IEnumExplorerCommand {
+public:
+    IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
+        if (!ppv) return E_POINTER;
+        if (riid == IID_IUnknown || riid == IID_IEnumExplorerCommand) {
+            *ppv = static_cast<IEnumExplorerCommand*>(this); AddRef(); return S_OK;
+        }
+        *ppv = nullptr; return E_NOINTERFACE;
+    }
+    IFACEMETHODIMP_(ULONG) AddRef() override { return ::InterlockedIncrement(&ref_); }
+    IFACEMETHODIMP_(ULONG) Release() override {
+        LONG r = ::InterlockedDecrement(&ref_); if (r == 0) delete this; return r;
+    }
+    IFACEMETHODIMP Next(ULONG celt, IExplorerCommand** rgelt, ULONG* pceltFetched) override {
+        ULONG fetched = 0;
+        for (ULONG i = 0; i < celt && cursor_ < kCount; ++i) {
+            CmdKind k = (cursor_ == 0) ? CmdKind::CompressBundle
+                       : (cursor_ == 1) ? CmdKind::CompressEach
+                                        : CmdKind::CompressPrompt;
+            auto* cmd = new (std::nothrow) OpenZipCommand(k);
+            if (!cmd) return E_OUTOFMEMORY;
+            rgelt[i] = cmd; ++cursor_; ++fetched;
+        }
+        if (pceltFetched) *pceltFetched = fetched;
+        return (fetched < celt) ? S_FALSE : S_OK;
+    }
+    IFACEMETHODIMP Skip(ULONG celt) override {
+        cursor_ = (cursor_ + celt > kCount) ? kCount : cursor_ + celt; return S_OK;
+    }
+    IFACEMETHODIMP Reset() override { cursor_ = 0; return S_OK; }
+    IFACEMETHODIMP Clone(IEnumExplorerCommand** out) override {
+        if (!out) return E_POINTER;
+        auto* c = new (std::nothrow) CompressSubCommandEnum();
+        if (!c) return E_OUTOFMEMORY;
+        c->cursor_ = cursor_; *out = c; return S_OK;
+    }
+private:
+    static constexpr ULONG kCount = 3;
+    LONG ref_ = 1;
+    ULONG cursor_ = 0;
+};
+
 IFACEMETHODIMP OpenZipCommand::GetTitle(IShellItemArray* items, LPWSTR* name) {
     Log(L"GetTitle kind=%d", static_cast<int>(kind_));
     if (!name) return E_POINTER;
     switch (kind_) {
-        case CmdKind::Parent: return CopyToTaskMem(L"OpenZip", name);  // brand, untranslated
-        case CmdKind::Here:   return CopyToTaskMem(TitleExtractHere(), name);
+        case CmdKind::Parent:         return CopyToTaskMem(L"OpenZip", name);  // brand, untranslated
+        case CmdKind::Here:           return CopyToTaskMem(TitleExtractHere(), name);
         case CmdKind::Folder: {
             std::wstring path = FirstSelectedPath(items);
             std::wstring t = TitleExtractTo(path);
             return CopyToTaskMem(t.c_str(), name);
         }
+        case CmdKind::CompressParent: return CopyToTaskMem(TitleCompressParent(), name);
+        case CmdKind::CompressBundle: {
+            auto t = TitleCompressBundle(items);
+            return CopyToTaskMem(t.c_str(), name);
+        }
+        case CmdKind::CompressEach:   return CopyToTaskMem(TitleCompressEach(), name);
+        case CmdKind::CompressPrompt: return CopyToTaskMem(TitleCompressPrompt(), name);
     }
     return E_FAIL;
 }
 
 IFACEMETHODIMP OpenZipCommand::Invoke(IShellItemArray* items, IBindCtx*) {
     Log(L"Invoke kind=%d", static_cast<int>(kind_));
-    if (kind_ == CmdKind::Parent) return S_OK;  // parent doesn't act
+    // Parent verbs don't act directly — they show submenus.
+    if (kind_ == CmdKind::Parent || kind_ == CmdKind::CompressParent) return S_OK;
+
+    // Compress verbs: collect all selected paths and launch the compressor.
+    if (kind_ == CmdKind::CompressBundle || kind_ == CmdKind::CompressEach ||
+        kind_ == CmdKind::CompressPrompt) {
+        if (!items) return E_INVALIDARG;
+        DWORD count = 0;
+        items->GetCount(&count);
+        std::vector<std::wstring> paths;
+        paths.reserve(count);
+        for (DWORD i = 0; i < count; ++i) {
+            IShellItem* it = nullptr;
+            if (SUCCEEDED(items->GetItemAt(i, &it)) && it) {
+                LPWSTR p = nullptr;
+                if (SUCCEEDED(it->GetDisplayName(SIGDN_FILESYSPATH, &p)) && p) {
+                    paths.emplace_back(p); ::CoTaskMemFree(p);
+                }
+                it->Release();
+            }
+        }
+        if (paths.empty()) return E_INVALIDARG;
+        LaunchAppCompress(paths, kind_);
+        return S_OK;
+    }
+
+    // Extract verbs.
     std::wstring path = FirstSelectedPath(items);
     Log(L"Invoke path=%s", path.c_str());
     if (path.empty()) return E_INVALIDARG;
@@ -382,18 +586,28 @@ IFACEMETHODIMP OpenZipCommand::EnumSubCommands(IEnumExplorerCommand** out) {
     Log(L"EnumSubCommands kind=%d", static_cast<int>(kind_));
     if (!out) return E_POINTER;
     *out = nullptr;
-    if (kind_ != CmdKind::Parent) return E_NOTIMPL;
-    auto* e = new (std::nothrow) SubCommandEnum();
-    if (!e) return E_OUTOFMEMORY;
-    *out = e;
-    return S_OK;
+    if (kind_ == CmdKind::Parent) {
+        auto* e = new (std::nothrow) SubCommandEnum();
+        if (!e) return E_OUTOFMEMORY;
+        *out = e;
+        return S_OK;
+    }
+    if (kind_ == CmdKind::CompressParent) {
+        auto* e = new (std::nothrow) CompressSubCommandEnum();
+        if (!e) return E_OUTOFMEMORY;
+        *out = e;
+        return S_OK;
+    }
+    return E_NOTIMPL;
 }
 
 // ---------------------------------------------------------------------------
-// Class factory
+// Class factory — parameterized by the CmdKind it constructs.
 
 class ClassFactory : public IClassFactory {
 public:
+    explicit ClassFactory(CmdKind kind) : kind_(kind) {}
+
     IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
         if (!ppv) return E_POINTER;
         if (riid == IID_IUnknown || riid == IID_IClassFactory) {
@@ -413,7 +627,7 @@ public:
 
     IFACEMETHODIMP CreateInstance(IUnknown* outer, REFIID riid, void** ppv) override {
         if (outer) return CLASS_E_NOAGGREGATION;
-        auto* cmd = new (std::nothrow) OpenZipCommand(CmdKind::Parent);
+        auto* cmd = new (std::nothrow) OpenZipCommand(kind_);
         if (!cmd) return E_OUTOFMEMORY;
         HRESULT hr = cmd->QueryInterface(riid, ppv);
         cmd->Release();
@@ -427,6 +641,7 @@ public:
 
 private:
     LONG ref_ = 1;
+    CmdKind kind_;
 };
 
 }  // namespace
@@ -451,11 +666,14 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     Log(L"DllGetClassObject");
     if (!ppv) return E_POINTER;
     *ppv = nullptr;
-    if (clsid != kCLSID_OpenZipCommand) {
+    CmdKind kind;
+    if      (clsid == kCLSID_OpenZipCommand) kind = CmdKind::Parent;
+    else if (clsid == kCLSID_CompressParent) kind = CmdKind::CompressParent;
+    else {
         Log(L"  unknown CLSID — returning CLASS_E_CLASSNOTAVAILABLE");
         return CLASS_E_CLASSNOTAVAILABLE;
     }
-    auto* f = new (std::nothrow) ClassFactory();
+    auto* f = new (std::nothrow) ClassFactory(kind);
     if (!f) return E_OUTOFMEMORY;
     HRESULT hr = f->QueryInterface(riid, ppv);
     f->Release();
