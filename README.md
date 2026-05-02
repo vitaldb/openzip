@@ -15,7 +15,7 @@ A minimal, fast ZIP extractor for Windows 11 with native Explorer context-menu i
 
 ## Install
 
-Microsoft Store: *(pending submission)*
+Microsoft Store: https://www.microsoft.com/store/apps/9P09P5W5DPK0 *(pending review)*
 
 ## Build from source
 
