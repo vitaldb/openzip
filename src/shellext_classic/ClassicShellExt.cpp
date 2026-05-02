@@ -22,16 +22,6 @@ constexpr GUID kCLSID_Classic = {
 LONG g_dll_ref_count = 0;
 HMODULE g_module = nullptr;
 
-bool IsWin11OrLater() {
-    using RtlGetVersionFn = LONG (WINAPI*)(OSVERSIONINFOEXW*);
-    static auto fn = reinterpret_cast<RtlGetVersionFn>(
-        ::GetProcAddress(::GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion"));
-    if (!fn) return false;
-    OSVERSIONINFOEXW v{}; v.dwOSVersionInfoSize = sizeof(v);
-    if (fn(&v) != 0) return false;
-    return v.dwBuildNumber >= 22000;
-}
-
 bool IsKoreanLocale() {
     LANGID mui = ::GetUserDefaultUILanguage();
     LANGID loc = LANGIDFROMLCID(::GetUserDefaultLCID());
@@ -117,7 +107,7 @@ public:
     // IContextMenu
     IFACEMETHODIMP QueryContextMenu(HMENU menu, UINT idx, UINT idCmdFirst,
                                     UINT /*idCmdLast*/, UINT flags) override {
-        if (IsWin11OrLater() || (flags & CMF_DEFAULTONLY) || items_.empty()) {
+        if ((flags & CMF_DEFAULTONLY) || items_.empty()) {
             return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, 0);
         }
 
