@@ -442,6 +442,49 @@ TEST(Compressor, CancelMidWriteDeletesPartial) {
     EXPECT_FALSE(fs::exists(partial));
 }
 
+// ---------------------------------------------------------------------------
+// Fix F: SourceMissing test
+// ---------------------------------------------------------------------------
+TEST(Compressor, SourceMissingReturnsSourceMissing) {
+    openzip::test::TempDir td;
+    fs::path zip = td / L"out.zip";
+    NullCallback cb;
+    auto r = openzip::Compressor::Compress(
+        {td / L"does-not-exist.txt"}, zip, cb);
+    EXPECT_EQ(r, openzip::Compressor::Result::SourceMissing);
+    EXPECT_FALSE(fs::exists(zip));
+}
+
+// ---------------------------------------------------------------------------
+// Fix G: OutputExists + Cancel action
+// ---------------------------------------------------------------------------
+namespace {
+class CancelOnConflict : public openzip::Compressor::ProgressCallback {
+public:
+    void OnEntryStart(const std::wstring&, size_t, size_t) override {}
+    void OnBytes(uint64_t, uint64_t) override {}
+    openzip::Extractor::ConflictAction OnOutputExists(const fs::path&) override {
+        return openzip::Extractor::ConflictAction::Cancel;
+    }
+    bool ShouldCancel() override { return false; }
+    void OnComplete(openzip::Compressor::Result) override {}
+};
+}  // namespace
+
+TEST(Compressor, OutputExistsCancelReturnsOutputExists) {
+    openzip::test::TempDir td;
+    fs::path src = td / L"src" / L"a.txt";
+    openzip::test::WriteFileBytes(src, {'a'});
+    fs::path zip = td / L"out.zip";
+    openzip::test::WriteFileBytes(zip, {'O','L','D'});
+
+    CancelOnConflict cb;
+    auto r = openzip::Compressor::Compress({src}, zip, cb);
+    EXPECT_EQ(r, openzip::Compressor::Result::OutputExists);
+    auto bytes = openzip::test::ReadFileBytes(zip);
+    EXPECT_EQ(bytes.size(), 3u);
+}
+
 // CoreTests links gtest.lib (not gtest_main.lib), so this main is required.
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
