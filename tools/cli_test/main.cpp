@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <string>
 
+#include "core/compressor.h"
 #include "core/extractor.h"
 #include "core/filename_decoder.h"
 
@@ -96,6 +97,35 @@ private:
     int last_pct_ = -1;
 };
 
+class CompressConsoleCb : public openzip::Compressor::ProgressCallback {
+public:
+    void OnEntryStart(const std::wstring& rel, size_t i, size_t total) override {
+        std::printf("[%zu/%zu] ", i + 1, total);
+        PutLine(rel);
+    }
+    void OnBytes(uint64_t done, uint64_t total) override {
+        if (total == 0) return;
+        int pct = static_cast<int>((done * 100) / total);
+        if (pct == last_pct_) return;
+        last_pct_ = pct;
+        std::printf("\r  %3d%%", pct);
+        std::fflush(stdout);
+    }
+    openzip::Extractor::ConflictAction OnOutputExists(
+        const fs::path& zip) override {
+        std::printf("output exists: ");
+        PutLine(zip.wstring());
+        std::printf("  → overwriting\n");
+        return openzip::Extractor::ConflictAction::Overwrite;
+    }
+    bool ShouldCancel() override { return false; }
+    void OnComplete(openzip::Compressor::Result r) override {
+        std::printf("\nResult: %s\n", openzip::CompressResultName(r));
+    }
+private:
+    int last_pct_ = -1;
+};
+
 std::wstring GetEnvW(const wchar_t* name) {
     wchar_t buf[1024];
     DWORD n = ::GetEnvironmentVariableW(name, buf, sizeof(buf) / sizeof(buf[0]));
@@ -111,6 +141,17 @@ int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
         std::printf("Usage: CliTest.exe <zip-path> [target-dir]\n");
         return 2;
+    }
+
+    if (argc >= 4 && std::wstring(argv[1]) == L"--compress") {
+        fs::path output = argv[2];
+        std::vector<fs::path> srcs;
+        for (int i = 3; i < argc; ++i) srcs.emplace_back(argv[i]);
+        CompressConsoleCb cb;
+        openzip::Compressor::Options opts;
+        if (auto pw = GetEnvW(L"OPENZIP_PASSWORD"); !pw.empty()) opts.password = pw;
+        auto r = openzip::Compressor::Compress(srcs, output, cb, opts);
+        return r == openzip::Compressor::Result::Success ? 0 : 1;
     }
 
     fs::path zip_path = argv[1];
