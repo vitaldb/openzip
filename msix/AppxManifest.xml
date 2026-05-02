@@ -78,12 +78,25 @@
           </com:ComServer>
         </com:Extension>
 
-        <!-- Modern Win11 context menu for .zip -->
+        <!-- Modern Win11 context menu verbs -->
         <desktop4:Extension Category="windows.fileExplorerContextMenus">
           <desktop4:FileExplorerContextMenus>
+            <!-- .zip files: extract and compress -->
             <desktop5:ItemType Type=".zip">
-              <desktop5:Verb Id="OpenZip"
+              <desktop5:Verb Id="OpenZipExtract"
                              Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+              <desktop5:Verb Id="OpenZipCompress"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00" />
+            </desktop5:ItemType>
+            <!-- Any file: compress -->
+            <desktop5:ItemType Type="*">
+              <desktop5:Verb Id="OpenZipCompress"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00" />
+            </desktop5:ItemType>
+            <!-- Folders: compress -->
+            <desktop5:ItemType Type="Directory">
+              <desktop5:Verb Id="OpenZipCompress"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00" />
             </desktop5:ItemType>
           </desktop4:FileExplorerContextMenus>
         </desktop4:Extension>
