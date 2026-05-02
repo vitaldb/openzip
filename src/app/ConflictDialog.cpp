@@ -7,6 +7,7 @@ BEGIN_MESSAGE_MAP(CConflictDialog, CDialogEx)
     ON_BN_CLICKED(IDC_BTN_OVERWRITE, &CConflictDialog::OnOverwrite)
     ON_BN_CLICKED(IDC_BTN_SKIP,      &CConflictDialog::OnSkip)
     ON_BN_CLICKED(IDC_BTN_RENAME,    &CConflictDialog::OnRename)
+    ON_WM_CTLCOLOR()
 END_MESSAGE_MAP()
 
 CConflictDialog::CConflictDialog(const CString& dest_path, CWnd* parent)
@@ -19,6 +20,10 @@ void CConflictDialog::DoDataExchange(CDataExchange* pDX) {
 
 BOOL CConflictDialog::OnInitDialog() {
     CDialogEx::OnInitDialog();
+
+    if (openzip::dark_theme::IsDarkModeActive()) {
+        openzip::dark_theme::EnableForWindow(GetSafeHwnd());
+    }
 
     CString s;
     s.LoadString(IDS_DIALOG_CONFLICT_TITLE);  SetWindowText(s);
@@ -56,4 +61,18 @@ void CConflictDialog::OnCancel() {
     UpdateData(TRUE);
     action_ = openzip::Extractor::ConflictAction::Cancel;
     EndDialog(IDCANCEL);
+}
+
+HBRUSH CConflictDialog::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor) {
+    UINT msg;
+    switch (nCtlColor) {
+        case CTLCOLOR_EDIT:   msg = WM_CTLCOLOREDIT;   break;
+        case CTLCOLOR_STATIC: msg = WM_CTLCOLORSTATIC; break;
+        case CTLCOLOR_BTN:    msg = WM_CTLCOLORBTN;    break;
+        default:              msg = WM_CTLCOLORDLG;    break;
+    }
+    if (HBRUSH b = openzip::dark_theme::OnCtlColor(
+            pWnd->GetSafeHwnd(), pDC->GetSafeHdc(), msg))
+        return b;
+    return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
 }
