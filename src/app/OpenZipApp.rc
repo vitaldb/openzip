@@ -1,0 +1,97 @@
+// OpenZipApp.rc — dialog templates and version info.
+
+#include "winres.h"
+#include "resource.h"
+
+LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
+
+/////////////////////////////////////////////////////////////////////////////
+// Extract progress dialog
+
+IDD_EXTRACT DIALOGEX 0, 0, 340, 110
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_DLGMODALFRAME
+CAPTION "OpenZip"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "Archive:", IDC_STATIC, 10, 10, 40, 10
+    LTEXT           "", IDC_LABEL_ARCHIVE, 55, 10, 275, 10, SS_PATHELLIPSIS
+    LTEXT           "Current:", IDC_STATIC, 10, 25, 40, 10
+    LTEXT           "", IDC_LABEL_CURRENT_FILE, 55, 25, 275, 10, SS_PATHELLIPSIS
+    CONTROL         "", IDC_PROGRESS_OVERALL, "msctls_progress32", PBS_SMOOTH | WS_BORDER, 10, 45, 320, 12
+    LTEXT           "0%", IDC_LABEL_PERCENT, 10, 62, 80, 10
+    LTEXT           "", IDC_LABEL_COUNT, 100, 62, 100, 10, SS_CENTER
+    LTEXT           "", IDC_LABEL_SPEED, 230, 62, 100, 10, SS_RIGHT
+    DEFPUSHBUTTON   "Cancel", IDCANCEL, 270, 82, 60, 20
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// Password prompt dialog
+
+IDD_PASSWORD DIALOGEX 0, 0, 260, 95
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_DLGMODALFRAME
+CAPTION "Password Required"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "This archive is password-protected.", IDC_LABEL_PASSWORD_PROMPT, 10, 10, 240, 10
+    LTEXT           "Enter password:", IDC_STATIC, 10, 25, 80, 10
+    EDITTEXT        IDC_EDIT_PASSWORD, 10, 38, 240, 14, ES_PASSWORD | ES_AUTOHSCROLL
+    LTEXT           "", IDC_LABEL_PASSWORD_HINT, 10, 56, 240, 10
+    DEFPUSHBUTTON   "OK", IDOK, 145, 72, 50, 18
+    PUSHBUTTON      "Cancel", IDCANCEL, 200, 72, 50, 18
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// Conflict resolution dialog (default focus = Skip per plan §12)
+
+IDD_CONFLICT DIALOGEX 0, 0, 320, 115
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_DLGMODALFRAME
+CAPTION "File Already Exists"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "This file already exists:", IDC_STATIC, 10, 10, 300, 10
+    LTEXT           "", IDC_LABEL_CONFLICT_PATH, 10, 24, 300, 20, SS_PATHELLIPSIS
+    AUTOCHECKBOX    "Apply this choice to all remaining conflicts in this archive", IDC_CHECK_REMEMBER, 10, 50, 300, 12
+    PUSHBUTTON      "Overwrite", IDC_BTN_OVERWRITE, 10, 75, 65, 22
+    DEFPUSHBUTTON   "Skip", IDC_BTN_SKIP, 80, 75, 65, 22
+    PUSHBUTTON      "Rename", IDC_BTN_RENAME, 150, 75, 65, 22
+    PUSHBUTTON      "Cancel", IDCANCEL, 250, 75, 60, 22
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// Version info
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 0,1,0,0
+ PRODUCTVERSION 0,1,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "VitalDB"
+            VALUE "FileDescription", "OpenZip"
+            VALUE "FileVersion", "0.1.0.0"
+            VALUE "InternalName", "OpenZipApp"
+            VALUE "LegalCopyright", "Copyright (c) 2026 Hyung-Chul Lee / VitalDB"
+            VALUE "OriginalFilename", "OpenZipApp.exe"
+            VALUE "ProductName", "OpenZip"
+            VALUE "ProductVersion", "0.1.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

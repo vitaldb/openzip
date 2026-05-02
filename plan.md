@@ -315,6 +315,10 @@ In priority order:
 4. **Designed icons** (replace placeholders)
 5. **Progress dialog refinement**
 6. **System sound on completion** (option, default off)
+7. **Win11 dark mode support** — MFC dialogs don't get this for free. Two paths:
+   (a) immersive title bar via `DwmSetWindowAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE)` — 5 min, but mixed-theme look (dark titlebar + light content) is worse than fully light. Skip.
+   (b) Subclass `CButton`/`CEdit`/`CStatic`/`CProgressCtrl` with custom `OnPaint` against the system theme. ~1-2 days. Worth it only after Store launch + user feedback shows demand.
+   Reference: 7-Zip ships light-only at 25 years; Bandizip has full custom-painted UI. We're closer to 7-Zip.
 
 ## 7. Repository Layout
 

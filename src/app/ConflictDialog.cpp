@@ -1,0 +1,49 @@
+#include "stdafx.h"
+#include "ConflictDialog.h"
+
+IMPLEMENT_DYNAMIC(CConflictDialog, CDialogEx)
+
+BEGIN_MESSAGE_MAP(CConflictDialog, CDialogEx)
+    ON_BN_CLICKED(IDC_BTN_OVERWRITE, &CConflictDialog::OnOverwrite)
+    ON_BN_CLICKED(IDC_BTN_SKIP,      &CConflictDialog::OnSkip)
+    ON_BN_CLICKED(IDC_BTN_RENAME,    &CConflictDialog::OnRename)
+END_MESSAGE_MAP()
+
+CConflictDialog::CConflictDialog(const CString& dest_path, CWnd* parent)
+    : CDialogEx(IDD_CONFLICT, parent), dest_path_(dest_path) {}
+
+void CConflictDialog::DoDataExchange(CDataExchange* pDX) {
+    CDialogEx::DoDataExchange(pDX);
+    DDX_Check(pDX, IDC_CHECK_REMEMBER, remember_);
+}
+
+BOOL CConflictDialog::OnInitDialog() {
+    CDialogEx::OnInitDialog();
+    SetDlgItemText(IDC_LABEL_CONFLICT_PATH, dest_path_);
+    GetDlgItem(IDC_BTN_SKIP)->SetFocus();  // default = Skip per plan §12
+    return FALSE;
+}
+
+void CConflictDialog::OnOverwrite() {
+    UpdateData(TRUE);
+    action_ = openzip::Extractor::ConflictAction::Overwrite;
+    EndDialog(IDOK);
+}
+
+void CConflictDialog::OnSkip() {
+    UpdateData(TRUE);
+    action_ = openzip::Extractor::ConflictAction::Skip;
+    EndDialog(IDOK);
+}
+
+void CConflictDialog::OnRename() {
+    UpdateData(TRUE);
+    action_ = openzip::Extractor::ConflictAction::Rename;
+    EndDialog(IDOK);
+}
+
+void CConflictDialog::OnCancel() {
+    UpdateData(TRUE);
+    action_ = openzip::Extractor::ConflictAction::Cancel;
+    EndDialog(IDCANCEL);
+}
