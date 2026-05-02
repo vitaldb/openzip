@@ -4,6 +4,7 @@
 IMPLEMENT_DYNAMIC(CPasswordDialog, CDialogEx)
 
 BEGIN_MESSAGE_MAP(CPasswordDialog, CDialogEx)
+    ON_WM_CTLCOLOR()
 END_MESSAGE_MAP()
 
 CPasswordDialog::CPasswordDialog(const CString& archive_name, const CString& entry_name,
@@ -20,6 +21,10 @@ void CPasswordDialog::DoDataExchange(CDataExchange* pDX) {
 
 BOOL CPasswordDialog::OnInitDialog() {
     CDialogEx::OnInitDialog();
+
+    if (openzip::dark_theme::IsDarkModeActive()) {
+        openzip::dark_theme::EnableForWindow(GetSafeHwnd());
+    }
 
     CString s;
     s.LoadString(IDS_DIALOG_PASSWORD_TITLE);  SetWindowText(s);
@@ -59,4 +64,18 @@ void CPasswordDialog::OnOK() {
         return;
     }
     CDialogEx::OnOK();
+}
+
+HBRUSH CPasswordDialog::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor) {
+    UINT msg;
+    switch (nCtlColor) {
+        case CTLCOLOR_EDIT:   msg = WM_CTLCOLOREDIT;   break;
+        case CTLCOLOR_STATIC: msg = WM_CTLCOLORSTATIC; break;
+        case CTLCOLOR_BTN:    msg = WM_CTLCOLORBTN;    break;
+        default:              msg = WM_CTLCOLORDLG;    break;
+    }
+    if (HBRUSH b = openzip::dark_theme::OnCtlColor(
+            pWnd->GetSafeHwnd(), pDC->GetSafeHdc(), msg))
+        return b;
+    return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
 }
