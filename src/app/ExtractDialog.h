@@ -4,6 +4,7 @@
 #include "resource.h"
 #include "CommandLine.h"
 #include "core/extractor.h"
+#include "dark_theme.h"
 
 #include <atomic>
 #include <mutex>
@@ -35,6 +36,8 @@ protected:
     afx_msg LRESULT OnEntryStartMsg(WPARAM wp, LPARAM lp);
     afx_msg LRESULT OnBytesMsg(WPARAM wp, LPARAM lp);
     afx_msg LRESULT OnCompleteMsg(WPARAM wp, LPARAM lp);
+    afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+    afx_msg void OnProgressCustomDraw(NMHDR* hdr, LRESULT* result);
     DECLARE_MESSAGE_MAP()
 
     // ProgressCallback (worker-thread side).
