@@ -1,269 +1,935 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OpenZip — Korean ZIP done right on Windows</title>
-<meta name="description" content="가벼운 Windows 압축/해제기. 한국어 ZIP(CP949)을 깨짐 없이, 모던/클래식 컨텍스트 메뉴, 다크 모드, AES-256.">
-<meta property="og:title" content="OpenZip">
-<meta property="og:description" content="가벼운 Windows 압축/해제기. 한국어 ZIP을 깨짐 없이.">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenZip — 가벼운 오픈소스 Windows ZIP</title>
+<meta name="description" content="≈ 2 MB의 오픈소스 Windows 압축·해제기. 광고·텔레메트리·자동 업데이트 없음. 한국어 파일명도 그대로.">
+<meta property="og:title" content="OpenZip — 가벼운 오픈소스 Windows ZIP">
+<meta property="og:description" content="≈ 2 MB의 오픈소스 Windows 압축·해제기. 광고도 텔레메트리도 없음.">
 <meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='10' fill='%23B5392A'/><text x='32' y='46' font-family='serif' font-size='44' font-weight='900' text-anchor='middle' fill='%23F2EDE3'>Z</text></svg>">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
 <style>
   :root {
-    --bg: #ffffff;
-    --fg: #14171a;
-    --muted: #6b7280;
-    --border: #e5e7eb;
-    --accent: #2563eb;
-    --accent-fg: #ffffff;
-    --card: #f9fafb;
-    --code: #f3f4f6;
+    --paper:    #F2EDE3;   /* 한지 */
+    --paper-2:  #E9E2D3;
+    --ink:      #161310;   /* 먹 */
+    --ink-2:    #2A2520;
+    --vermilion:#B5392A;   /* 진사 단청 */
+    --celadon:  #2F4F4F;   /* 먹청 */
+    --ash:      #847A6D;
+    --hairline: rgba(22,19,16,.18);
+    --hairline-2: rgba(22,19,16,.08);
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0d1117;
-      --fg: #e6edf3;
-      --muted: #8b949e;
-      --border: #30363d;
-      --accent: #3b82f6;
-      --accent-fg: #ffffff;
-      --card: #161b22;
-      --code: #1f242c;
-    }
-  }
-  * { box-sizing: border-box; }
+
+  *, *::before, *::after { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
-                 "Malgun Gothic", "Noto Sans KR", sans-serif;
-    line-height: 1.6;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans KR", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 400;
     font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  /* Subtle hanji paper grain. SVG noise is heavier than the data URI version
+     would seem; keep it tasteful. */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.09 0 0 0 0 0.07 0 0 0 0 0.06 0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: .9;
+    mix-blend-mode: multiply;
+    z-index: 1;
+  }
+  body > * { position: relative; z-index: 2; }
+
+  /* ---------- Type ---------- */
+
+  .display      { font-family: "Fraunces", "Gowun Batang", serif; font-optical-sizing: auto; font-variation-settings: "SOFT" 30, "WONK" 0; }
+  .display-ko   { font-family: "Gowun Batang", "Fraunces", serif; }
+  .body         { font-family: "IBM Plex Sans KR", "IBM Plex Sans", sans-serif; }
+  .mono         { font-family: "JetBrains Mono", ui-monospace, Consolas, monospace; }
+
+  h1, h2, h3, h4 { margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+
+  .eyebrow {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ash);
+    font-weight: 500;
+  }
+
+  /* ---------- Layout ---------- */
+
+  .wrap   { width: 100%; max-width: 1240px; margin: 0 auto; padding: 0 40px; }
+  .wrap-narrow { width: 100%; max-width: 880px; margin: 0 auto; padding: 0 40px; }
+  @media (max-width: 700px) {
+    .wrap, .wrap-narrow { padding: 0 24px; }
+  }
+
+  hr.rule {
+    border: 0; border-top: 1px solid var(--hairline);
+    margin: 0;
+  }
+  hr.rule-2 {
+    border: 0; border-top: 1px solid var(--hairline-2);
+    margin: 0;
+  }
+
+  /* ---------- Masthead ---------- */
+
+  .masthead {
+    border-bottom: 1px solid var(--ink);
+    padding: 14px 0 12px;
+    background: var(--paper);
+  }
+  .masthead-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 24px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .masthead-row > :first-child { justify-self: start; }
+  .masthead-row > :last-child  { justify-self: end; }
+  .masthead-mark {
+    font-family: "Fraunces", serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    text-transform: none;
+  }
+  .masthead-mark .seal {
+    display: inline-block;
+    background: var(--vermilion);
+    color: var(--paper);
+    font-family: "Gowun Batang", serif;
+    font-size: 11px;
+    padding: 2px 5px 1px;
+    margin-right: 6px;
+    transform: translateY(-1px);
   }
   .lang-toggle {
-    position: fixed; top: 16px; right: 16px; z-index: 10;
-    background: var(--card); border: 1px solid var(--border); border-radius: 999px;
-    padding: 6px 14px; font-size: 13px; cursor: pointer; color: var(--fg);
+    appearance: none; background: transparent;
+    border: 0; padding: 0;
+    font: inherit;
+    color: var(--ink-2);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: inherit;
+    border-bottom: 1px solid var(--hairline);
   }
-  .container { max-width: 880px; margin: 0 auto; padding: 56px 24px; }
-  header { text-align: center; margin-bottom: 56px; }
-  header h1 {
-    font-size: clamp(36px, 6vw, 56px); margin: 0 0 12px;
+  .lang-toggle:hover { color: var(--vermilion); border-color: var(--vermilion); }
+
+  @media (max-width: 700px) {
+    .masthead-row { grid-template-columns: 1fr 1fr; gap: 12px; }
+    .masthead-row > :nth-child(2) { display: none; }
+  }
+
+  /* ---------- Hero ---------- */
+
+  .hero {
+    padding: 88px 0 96px;
+    border-bottom: 1px solid var(--ink);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    /* a quiet Korean ink-stroke accent in the corner */
+    content: "";
+    position: absolute;
+    right: -120px; bottom: -180px;
+    width: 480px; height: 480px;
+    background: radial-gradient(closest-side, rgba(181,57,42,.08), transparent 70%);
+    pointer-events: none;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 64px;
+    align-items: end;
+  }
+  @media (max-width: 980px) {
+    .hero { padding: 56px 0 64px; }
+    .hero-grid { grid-template-columns: 1fr; gap: 40px; align-items: start; }
+  }
+
+  .hero-meta {
+    display: flex; flex-wrap: wrap; gap: 14px 28px;
+    margin-bottom: 28px;
+    color: var(--ash);
+  }
+  .hero-meta b { color: var(--ink); font-weight: 500; }
+
+  .hero h1 {
+    font-family: "Gowun Batang", "Fraunces", serif;
+    font-weight: 700;
+    font-size: clamp(48px, 9.2vw, 132px);
+    line-height: 0.95;
+    letter-spacing: -0.035em;
+    margin: 0;
+  }
+  /* English heads run wider per glyph than Korean — drop the cap so the
+     line still breaks where the editorial wants it to. */
+  body.en .hero h1 {
+    font-family: "Fraunces", serif;
+    font-size: clamp(44px, 6.6vw, 96px);
+    letter-spacing: -0.028em;
+    line-height: 0.98;
+    font-variation-settings: "SOFT" 30;
+  }
+  body.en .hero h1 .em {
+    font-family: "Gowun Batang", serif;
+    font-style: normal;
+  }
+  body.en .hero h1 .small { font-size: 0.34em; }
+  .hero h1 .em {
+    font-style: italic;
+    color: var(--vermilion);
+    font-family: "Fraunces", serif;
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+    font-weight: 700;
+  }
+  .hero h1 .small {
+    display: block;
+    font-family: "Fraunces", serif;
+    font-size: 0.42em;
+    font-weight: 400;
+    color: var(--ink-2);
     letter-spacing: -0.02em;
+    margin-top: 0.4em;
+    font-style: italic;
   }
-  header p.tagline {
-    font-size: clamp(16px, 2.4vw, 20px); color: var(--muted); margin: 0 0 32px;
+  .hero p.lede {
+    margin: 28px 0 0;
+    font-size: clamp(17px, 1.6vw, 21px);
+    color: var(--ink-2);
+    max-width: 36ch;
+    line-height: 1.55;
   }
-  .cta-row {
-    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 28px;
+
+  .hero-cta {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    margin-top: 36px;
+    align-items: center;
   }
   .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 12px 22px; border-radius: 8px; text-decoration: none; font-weight: 600;
-    border: 1px solid var(--border); transition: transform 0.05s ease;
+    display: inline-flex; align-items: baseline; gap: 10px;
+    padding: 14px 22px;
+    border-radius: 0;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 15px;
+    transition: transform .12s ease, background .12s ease, color .12s ease;
+    border: 1px solid var(--ink);
   }
-  .btn:hover { transform: translateY(-1px); }
-  .btn-primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
-  .btn-secondary { background: var(--card); color: var(--fg); }
-  .btn .v { opacity: 0.7; font-weight: 500; font-size: 13px; }
-  section { margin: 64px 0; }
-  h2 { font-size: 24px; margin: 0 0 24px; letter-spacing: -0.01em; }
+  .btn-primary { background: var(--ink); color: var(--paper); }
+  .btn-primary:hover { background: var(--vermilion); border-color: var(--vermilion); transform: translateY(-1px); }
+  .btn-ghost   { background: transparent; color: var(--ink); }
+  .btn-ghost:hover { background: var(--ink); color: var(--paper); transform: translateY(-1px); }
+  .btn .v { font-family: "JetBrains Mono", monospace; font-size: 12px; opacity: .65; letter-spacing: 0.04em; }
+  .btn .arr { font-family: "Fraunces", serif; font-size: 18px; line-height: 1; transform: translateY(2px); }
+
+  .hero-side-note {
+    margin-top: 18px;
+    color: var(--ash);
+    font-size: 13px;
+  }
+  .hero-side-note a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+
+  /* ---------- Spec sheet (hero side) ---------- */
+
+  .spec {
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    box-shadow: 6px 6px 0 var(--ink);
+    padding: 24px 26px 26px;
+  }
+  .spec-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .spec-head > :first-child { font-family: "Fraunces", serif; font-style: italic; font-size: 14px; letter-spacing: 0; text-transform: none; font-weight: 600; }
+  .spec-list {
+    margin: 0; padding: 0;
+    display: grid;
+    grid-template-columns: minmax(110px, auto) 1fr;
+    column-gap: 18px;
+    row-gap: 10px;
+  }
+  .spec-list dt {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ash);
+    padding-top: 4px;
+    border-top: 1px dashed var(--hairline-2);
+  }
+  .spec-list dt:first-child,
+  .spec-list dt:first-child + dd { border-top: 0; padding-top: 0; }
+  .spec-list dd {
+    margin: 0;
+    padding-top: 4px;
+    border-top: 1px dashed var(--hairline-2);
+    font-family: "Gowun Batang", serif;
+    font-size: 14.5px;
+    color: var(--ink);
+    text-align: right;
+  }
+  .spec-list dd.off {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    color: var(--vermilion);
+    font-weight: 600;
+  }
+  .spec-foot {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--ink);
+    font-family: "Gowun Batang", serif;
+    font-size: 14px;
+    color: var(--ink);
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------- Features (numbered editorial) ---------- */
+
   .features {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
+    padding: 96px 0;
+    border-bottom: 1px solid var(--ink);
   }
-  .feature {
-    padding: 18px; background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  .features-head {
+    display: flex; justify-content: space-between; align-items: end;
+    margin-bottom: 56px;
+    gap: 24px; flex-wrap: wrap;
   }
-  .feature h3 { margin: 0 0 6px; font-size: 16px; }
-  .feature p { margin: 0; color: var(--muted); font-size: 14px; }
-  .shots {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 18px;
+  .features h2 {
+    font-family: "Fraunces", serif;
+    font-size: clamp(34px, 4.5vw, 52px);
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    line-height: 1.05;
+    font-variation-settings: "SOFT" 50;
+  }
+  .features h2 .ko {
+    font-family: "Gowun Batang", serif;
+    display: block;
+    font-size: 0.62em;
+    margin-top: 0.3em;
+    color: var(--ink-2);
+    font-weight: 700;
+    font-style: normal;
+  }
+  .feature-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    border-top: 1px solid var(--hairline);
+  }
+  @media (max-width: 760px) { .feature-list { grid-template-columns: 1fr; } }
+  .feat {
+    padding: 32px 36px 36px 0;
+    border-bottom: 1px solid var(--hairline);
+    position: relative;
+  }
+  .feat:nth-child(odd) { border-right: 1px solid var(--hairline); padding-right: 36px; }
+  .feat:nth-child(even) { padding-left: 36px; padding-right: 0; }
+  @media (max-width: 760px) {
+    .feat, .feat:nth-child(odd), .feat:nth-child(even) {
+      padding: 28px 0 32px;
+      border-right: 0;
+    }
+  }
+  .feat .num {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+    color: var(--vermilion);
+    font-size: 28px;
+    font-weight: 500;
+    line-height: 1;
+    margin-bottom: 14px;
+    display: inline-block;
+  }
+  .feat h3 {
+    font-family: "Gowun Batang", serif;
+    font-size: 22px;
+    line-height: 1.25;
+    margin: 4px 0 10px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .feat .lat {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ash);
+    margin-bottom: 12px;
+    display: block;
+    font-variation-settings: "SOFT" 60;
+  }
+  .feat p { margin: 0; color: var(--ink-2); font-size: 14.5px; line-height: 1.6; max-width: 42ch; }
+
+  /* ---------- Gallery ---------- */
+
+  .gallery { padding: 96px 0; border-bottom: 1px solid var(--ink); background: var(--paper-2); }
+  .gallery .eyebrow { margin-bottom: 12px; display: block; }
+  .gallery h2 {
+    font-family: "Gowun Batang", serif;
+    font-size: clamp(34px, 4.5vw, 50px);
+    letter-spacing: -0.022em;
+    margin-bottom: 48px;
+    line-height: 1.05;
+  }
+  .gallery h2 em {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    color: var(--vermilion);
+    font-weight: 700;
+    font-variation-settings: "SOFT" 80;
+  }
+
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 24px;
   }
   .shot {
-    border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--card);
+    background: var(--paper);
+    border: 1px solid var(--hairline);
+    padding: 18px 18px 20px;
+    transition: transform .25s ease;
   }
-  .shot img { display: block; width: 100%; height: auto; }
-  .shot .cap { padding: 10px 14px; font-size: 13px; color: var(--muted); }
-  .install {
-    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-    padding: 20px; font-size: 14px;
+  .shot:hover { transform: translateY(-3px); }
+  .shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--hairline-2);
   }
-  pre, code {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  .shot .cap {
+    margin-top: 14px;
+    display: flex; justify-content: space-between; gap: 16px;
+    align-items: baseline;
   }
-  pre {
-    background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
-    font-size: 13px; line-height: 1.5;
+  .shot .cap .ko { font-family: "Gowun Batang", serif; font-size: 14.5px; font-weight: 700; }
+  .shot .cap .lat { font-family: "Fraunces", serif; font-style: italic; font-size: 12px; color: var(--ash); white-space: nowrap; }
+  .shot .num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: var(--vermilion);
+    text-transform: uppercase;
+    margin-bottom: 8px;
   }
-  footer {
-    margin-top: 80px; padding-top: 32px; border-top: 1px solid var(--border);
-    text-align: center; color: var(--muted); font-size: 13px;
+  .shot.lg { grid-column: span 7; }
+  .shot.md { grid-column: span 5; }
+  .shot.sm { grid-column: span 4; }
+  .shot.sm + .shot.sm { /* nothing */ }
+  @media (max-width: 880px) {
+    .shot.lg, .shot.md, .shot.sm { grid-column: span 12; }
   }
-  footer a { color: var(--muted); }
-  .lang-en { display: none; }
+
+  /* ---------- CLI / install ---------- */
+
+  .cli { padding: 96px 0; border-bottom: 1px solid var(--ink); }
+  .cli-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 56px;
+    align-items: start;
+  }
+  @media (max-width: 880px) { .cli-grid { grid-template-columns: 1fr; gap: 32px; } }
+  .cli h2 {
+    font-family: "Gowun Batang", serif;
+    font-size: clamp(34px, 4.5vw, 50px);
+    line-height: 1.05;
+    letter-spacing: -0.022em;
+  }
+  .cli h2 em {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    color: var(--vermilion);
+    font-weight: 700;
+    font-variation-settings: "SOFT" 80;
+  }
+  .cli .eyebrow { display: block; margin-bottom: 14px; }
+  .cli p { color: var(--ink-2); font-size: 15px; margin-top: 16px; max-width: 42ch; }
+
+  .terminal {
+    background: var(--ink);
+    color: var(--paper);
+    border: 1px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--vermilion);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  .terminal-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(242,237,227,.16);
+    font-size: 11px;
+    color: rgba(242,237,227,.55);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .terminal-bar .dots { display: inline-flex; gap: 6px; margin-right: 10px; }
+  .terminal-bar .dots i { width: 9px; height: 9px; border-radius: 50%; background: rgba(242,237,227,.18); display: block; }
+  .terminal-body { padding: 16px 20px 22px; overflow-x: auto; }
+  .terminal-body .ps   { color: rgba(242,237,227,.55); }
+  .terminal-body .cmd  { color: var(--paper); }
+  .terminal-body .flag { color: #E8C46A; }
+  .terminal-body .arg  { color: #9FCFCF; }
+  .terminal-body .out  { color: rgba(242,237,227,.7); display: block; padding-left: 0; }
+  .terminal-body .ok   { color: #9DD08E; }
+  .terminal-body .ko   { color: var(--paper); }
+  .terminal-body code  { display: block; }
+  .terminal-body code + code { margin-top: 6px; }
+
+  .req {
+    margin-top: 28px;
+    border: 1px solid var(--hairline);
+    padding: 18px 22px;
+    background: var(--paper-2);
+    font-size: 13.5px;
+    color: var(--ink-2);
+    line-height: 1.65;
+  }
+  .req .head {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    color: var(--ash);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .req b { color: var(--ink); font-weight: 500; }
+
+  /* ---------- Colophon ---------- */
+
+  footer.colophon {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 80px 0 56px;
+  }
+  footer.colophon .col-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 40px;
+    align-items: start;
+  }
+  @media (max-width: 880px) { footer.colophon .col-grid { grid-template-columns: 1fr 1fr; gap: 28px; } }
+  @media (max-width: 540px) { footer.colophon .col-grid { grid-template-columns: 1fr; } }
+  footer.colophon h4 {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(242,237,227,.5);
+    font-weight: 500;
+    margin-bottom: 14px;
+  }
+  footer.colophon a { color: var(--paper); text-decoration: none; border-bottom: 1px solid rgba(242,237,227,.2); }
+  footer.colophon a:hover { color: var(--vermilion); border-color: var(--vermilion); }
+  footer.colophon p { margin: 0 0 8px; font-size: 14px; line-height: 1.55; color: rgba(242,237,227,.85); }
+  footer.colophon .brand {
+    font-family: "Fraunces", serif;
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  footer.colophon .brand .seal {
+    background: var(--vermilion);
+    color: var(--paper);
+    font-family: "Gowun Batang", serif;
+    font-size: 14px;
+    padding: 3px 6px;
+    margin-right: 8px;
+    transform: translateY(-6px);
+    display: inline-block;
+  }
+  footer.colophon .brand-sub {
+    font-family: "Gowun Batang", serif;
+    font-size: 13px;
+    margin-top: 8px;
+    color: rgba(242,237,227,.6);
+  }
+  footer.colophon .baseline {
+    margin-top: 56px;
+    padding-top: 22px;
+    border-top: 1px solid rgba(242,237,227,.16);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(242,237,227,.5);
+  }
+
+  /* ---------- Bilingual ---------- */
+  .lang-en       { display: none; }
   body.en .lang-ko { display: none; }
-  body.en .lang-en { display: initial; }
+  body.en .lang-en { display: inline; }
   body.en .lang-en-block { display: block; }
-  .lang-en-block { display: none; }
+  body.en .lang-en-flex  { display: flex; }
+  .lang-en-block, .lang-en-flex { display: none; }
+
+  /* ---------- Page-load reveal ---------- */
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { opacity: 0; transform: translateY(14px); animation: rise .9s cubic-bezier(.2,.7,.2,1) forwards; }
+    .reveal.d1 { animation-delay: .05s; }
+    .reveal.d2 { animation-delay: .15s; }
+    .reveal.d3 { animation-delay: .25s; }
+    .reveal.d4 { animation-delay: .35s; }
+    .reveal.d5 { animation-delay: .45s; }
+    .reveal.d6 { animation-delay: .55s; }
+    @keyframes rise {
+      to { opacity: 1; transform: none; }
+    }
+  }
+
+  ::selection { background: var(--vermilion); color: var(--paper); }
 </style>
 </head>
 <body>
 
-<button class="lang-toggle" id="langBtn" type="button">English</button>
-
-<div class="container">
-
-<header>
-  <h1>OpenZip</h1>
-  <p class="tagline">
-    <span class="lang-ko">한국어 ZIP을 깨짐 없이 다루는 가벼운 Windows 압축/해제기</span>
-    <span class="lang-en">A minimal Windows ZIP utility that gets Korean filenames right.</span>
-  </p>
-
-  <div class="cta-row">
-    <a class="btn btn-primary" href="https://www.microsoft.com/store/apps/9P09P5W5DPK0">
-      <span class="lang-ko">Microsoft Store에서 받기</span>
-      <span class="lang-en">Get from Microsoft Store</span>
-    </a>
-    <a class="btn btn-secondary" href="https://github.com/vitaldb/openzip/releases/latest">
-      <span class="lang-ko">GitHub 릴리즈 다운로드</span>
-      <span class="lang-en">GitHub Releases</span>
-      <span class="v">.msix</span>
-    </a>
-    <a class="btn btn-secondary" href="https://github.com/vitaldb/openzip">
-      <span>Source</span>
-    </a>
+<!-- ───────── Masthead ───────── -->
+<header class="masthead">
+  <div class="wrap masthead-row">
+    <div>
+      <span class="masthead-mark"><span class="seal">壓</span>OpenZip</span>
+    </div>
+    <div>
+      Vol. 0.3 · <span class="lang-ko">서울 · 2026</span><span class="lang-en">Seoul · 2026</span>
+    </div>
+    <div>
+      <button id="langBtn" type="button" class="lang-toggle">English</button>
+    </div>
   </div>
 </header>
 
-<section>
-  <h2>
-    <span class="lang-ko">기능</span>
-    <span class="lang-en">Features</span>
-  </h2>
-  <div class="features">
-    <div class="feature">
-      <h3><span class="lang-ko">한국어 파일명 정확</span><span class="lang-en">Correct Korean filenames</span></h3>
-      <p>
-        <span class="lang-ko">CP949 / UTF-8 자동 감지. 옛날 ZIP도 깨짐 없음.</span>
-        <span class="lang-en">Robust CP949/UTF-8 detection. No mojibake.</span>
+<!-- ───────── Hero ───────── -->
+<section class="hero">
+  <div class="wrap hero-grid">
+
+    <div>
+      <div class="hero-meta reveal d1">
+        <span class="eyebrow"><b>ISSUE</b> &nbsp; 03</span>
+        <span class="eyebrow"><b><span class="lang-ko">발행</span><span class="lang-en">Released</span></b> &nbsp; 2026.05</span>
+        <span class="eyebrow"><b>WIN</b> &nbsp; 10 / 11 · x64</span>
+        <span class="eyebrow"><b>SIZE</b> &nbsp; ≈ 2 MB</span>
+      </div>
+
+      <h1 class="reveal d2">
+        <span class="lang-ko">가볍게,<br>열려서, <span class="em">ZIP</span>.<span class="small">≈ 2 MB · MIT · 광고도 텔레메트리도 없음.</span></span>
+        <span class="lang-en">Light.<br>Open.<br><span class="em">ZIP</span>.<span class="small">≈ 2 MB · MIT · no ads, no telemetry.</span></span>
+      </h1>
+
+      <p class="lede reveal d3">
+        <span class="lang-ko">Windows를 위한 작은 ZIP 도구. 코드는 GitHub에 공개되어 있고, 광고도 텔레메트리도 자동 업데이트도 없다. 한국어 파일명은 — 그저 깨지지 않는다.</span>
+        <span class="lang-en">A small ZIP tool for Windows. Source on GitHub, MIT-licensed; no ads, no telemetry, no silent updates. Korean filenames just — work.</span>
+      </p>
+
+      <div class="hero-cta reveal d4">
+        <a class="btn btn-primary" href="https://github.com/vitaldb/openzip/releases/latest">
+          <span class="lang-ko">최신 버전 받기</span>
+          <span class="lang-en">Download latest</span>
+          <span class="v">.msix</span>
+          <span class="arr">→</span>
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/vitaldb/openzip">
+          <span class="lang-ko">소스 보기</span>
+          <span class="lang-en">View source</span>
+          <span class="arr">↗</span>
+        </a>
+      </div>
+      <p class="hero-side-note reveal d5">
+        <span class="lang-ko">설치 후 PowerShell에서 <code class="mono">Add-AppxPackage .\OpenZip_0.3.0.msix</code> · 모든 릴리스는 <a href="https://github.com/vitaldb/openzip/releases">GitHub</a>에 공개합니다.</span>
+        <span class="lang-en">In PowerShell after download: <code class="mono">Add-AppxPackage .\OpenZip_0.3.0.msix</code>. Every release lives on <a href="https://github.com/vitaldb/openzip/releases">GitHub</a>.</span>
       </p>
     </div>
-    <div class="feature">
-      <h3><span class="lang-ko">탐색기 우클릭 통합</span><span class="lang-en">Explorer right-click</span></h3>
-      <p>
-        <span class="lang-ko">Win11 모던 메뉴 + Win10 클래식 메뉴 모두 지원. 압축·해제·옵션 한자리.</span>
-        <span class="lang-en">Win11 modern + Win10 classic menus. Extract, compress, options — all in place.</span>
-      </p>
+
+    <aside class="spec reveal d3" aria-label="OpenZip specification card">
+      <div class="spec-head">
+        <span><span class="lang-ko">사양</span><span class="lang-en">Specification</span></span>
+        <span>OPENZIP · 0.3</span>
+      </div>
+      <dl class="spec-list">
+        <dt><span class="lang-ko">크기</span><span class="lang-en">Size</span></dt>
+        <dd>≈ 2 MB</dd>
+        <dt><span class="lang-ko">라이선스</span><span class="lang-en">License</span></dt>
+        <dd>MIT</dd>
+        <dt><span class="lang-ko">소스</span><span class="lang-en">Source</span></dt>
+        <dd>github.com/vitaldb/openzip</dd>
+        <dt><span class="lang-ko">텔레메트리</span><span class="lang-en">Telemetry</span></dt>
+        <dd class="off"><span class="lang-ko">없음</span><span class="lang-en">none</span></dd>
+        <dt><span class="lang-ko">광고</span><span class="lang-en">Ads</span></dt>
+        <dd class="off"><span class="lang-ko">없음</span><span class="lang-en">none</span></dd>
+        <dt><span class="lang-ko">자동 업데이트</span><span class="lang-en">Auto-update</span></dt>
+        <dd class="off"><span class="lang-ko">없음</span><span class="lang-en">none</span></dd>
+        <dt><span class="lang-ko">의존성</span><span class="lang-en">Dependencies</span></dt>
+        <dd>zlib · minizip-ng · bzip2</dd>
+        <dt><span class="lang-ko">플랫폼</span><span class="lang-en">Platform</span></dt>
+        <dd>Win 10 (1903+) · 11 · x64</dd>
+      </dl>
+      <div class="spec-foot">
+        <span class="lang-ko">한글 파일명 — 그대로.</span>
+        <span class="lang-en">Korean filenames — kept intact.</span>
+      </div>
+    </aside>
+
+  </div>
+</section>
+
+
+<!-- ───────── Features ───────── -->
+<section class="features">
+  <div class="wrap">
+    <div class="features-head">
+      <h2>
+        <span class="lang-ko">기능 일람</span>
+        <span class="lang-en">What it does</span>
+        <span class="ko lang-ko" aria-hidden="true">— 여섯 가지로 충분합니다.</span>
+        <span class="ko lang-en" aria-hidden="true">— six things, no more.</span>
+      </h2>
+      <span class="eyebrow">§ <span class="lang-ko">목차</span><span class="lang-en">Index</span></span>
     </div>
-    <div class="feature">
-      <h3><span class="lang-ko">미리보기 다이얼로그</span><span class="lang-en">Browser dialog</span></h3>
-      <p>
-        <span class="lang-ko">.zip 더블클릭 시 파일/폴더 목록 + 시스템 아이콘. 더블클릭으로 폴더 탐색, 한 파일만 추출도 가능.</span>
-        <span class="lang-en">Double-click a .zip to browse contents with shell icons. Drill into folders, extract one file or a selection.</span>
-      </p>
-    </div>
-    <div class="feature">
-      <h3><span class="lang-ko">AES-256 암호화</span><span class="lang-en">AES-256 encryption</span></h3>
-      <p>
-        <span class="lang-ko">읽기는 ZipCrypto · AES-256 모두 지원. 새로 만들 땐 비밀번호 입력 시 AES-256.</span>
-        <span class="lang-en">Reads ZipCrypto + AES-256; writes AES-256 when a password is set.</span>
-      </p>
-    </div>
-    <div class="feature">
-      <h3><span class="lang-ko">다크 모드</span><span class="lang-en">Dark mode</span></h3>
-      <p>
-        <span class="lang-ko">Win11 다크 테마를 모든 다이얼로그가 따라감.</span>
-        <span class="lang-en">All dialogs follow the OS dark theme on Win11.</span>
-      </p>
-    </div>
-    <div class="feature">
-      <h3><span class="lang-ko">안전 + 가벼움</span><span class="lang-en">Safe &amp; lean</span></h3>
-      <p>
-        <span class="lang-ko">Zip-slip · 심볼릭 링크 · 압축 폭탄 방어. 광고·텔레메트리·자동 업데이트 없음.</span>
-        <span class="lang-en">Zip-slip, symlink, decompression-bomb protections. No ads, no telemetry, no auto-update.</span>
-      </p>
+
+    <div class="feature-list">
+      <article class="feat">
+        <span class="num">01</span>
+        <span class="lat">Light. Open. Honest.</span>
+        <h3><span class="lang-ko">≈ 2 MB의 오픈소스</span><span class="lang-en">≈ 2 MB, open-source</span></h3>
+        <p>
+          <span class="lang-ko">전체 크기 2 MB 안팎. MIT 라이선스로 GitHub에 전부 공개. 광고도, 텔레메트리도, 자동 업데이트도 없다.</span>
+          <span class="lang-en">About 2 MB total. MIT-licensed, every line on GitHub. No ads, no telemetry, no silent updates.</span>
+        </p>
+      </article>
+
+      <article class="feat">
+        <span class="num">02</span>
+        <span class="lat">Explorer integration</span>
+        <h3><span class="lang-ko">탐색기 우클릭 통합</span><span class="lang-en">Right-click in Explorer</span></h3>
+        <p>
+          <span class="lang-ko">Win11 모던 메뉴와 Win10 클래식 메뉴 모두에 자연스럽게 들어간다. 압축·해제·옵션이 한 자리에.</span>
+          <span class="lang-en">Sits naturally inside both the Win11 modern menu and the Win10 classic menu. Extract, compress, options — one place.</span>
+        </p>
+      </article>
+
+      <article class="feat">
+        <span class="num">03</span>
+        <span class="lat">Browse without extracting</span>
+        <h3><span class="lang-ko">미리 보고, 골라서 풀기</span><span class="lang-en">Browse, then pick</span></h3>
+        <p>
+          <span class="lang-ko">.zip을 더블클릭하면 트리·시스템 아이콘과 함께 내용물이 펼쳐진다. 하나만 꺼내거나, 묶어서 꺼낼 수 있다.</span>
+          <span class="lang-en">Double-click an archive to see its tree with native shell icons. Extract one entry or a selection.</span>
+        </p>
+      </article>
+
+      <article class="feat">
+        <span class="num">04</span>
+        <span class="lat">Korean filenames, kept</span>
+        <h3><span class="lang-ko">한글 파일명, 그대로</span><span class="lang-en">Korean filenames, intact</span></h3>
+        <p>
+          <span class="lang-ko">CP949·UTF-8 자동 판별. 옛 ZIP과 새 ZIP을 같은 방식으로 다루며, 한 글자도 ‘?’로 바꾸지 않는다.</span>
+          <span class="lang-en">Automatic CP949/UTF-8 detection. Old archives and new archives are read the same way, without a single ‘?’.</span>
+        </p>
+      </article>
+
+      <article class="feat">
+        <span class="num">05</span>
+        <span class="lat">AES-256, password-aware</span>
+        <h3><span class="lang-ko">AES-256 암호화</span><span class="lang-en">AES-256 encryption</span></h3>
+        <p>
+          <span class="lang-ko">읽을 때는 ZipCrypto·AES-256 모두 지원. 만들 때는 비밀번호가 있으면 AES-256으로 묶는다.</span>
+          <span class="lang-en">Reads ZipCrypto and AES-256; writes AES-256 whenever a password is supplied.</span>
+        </p>
+      </article>
+
+      <article class="feat">
+        <span class="num">06</span>
+        <span class="lat">Dark, quiet, safe</span>
+        <h3><span class="lang-ko">다크 모드 · 안전 장치</span><span class="lang-en">Dark mode, quiet safeguards</span></h3>
+        <p>
+          <span class="lang-ko">Win11 다크 테마를 그대로 따른다. Zip-slip · 심볼릭 링크 · 압축 폭탄은 경고창 없이 조용히 거부한다.</span>
+          <span class="lang-en">Follows the Win11 dark theme. Zip-slip, symlink, and decompression-bomb attempts are quietly refused — no dialogs.</span>
+        </p>
+      </article>
     </div>
   </div>
 </section>
 
-<section>
-  <h2>
-    <span class="lang-ko">스크린샷</span>
-    <span class="lang-en">Screenshots</span>
-  </h2>
-  <div class="shots">
-    <div class="shot">
-      <img src="screenshots/archive-browser.png" alt="Archive browser">
-      <div class="cap">
-        <span class="lang-ko">압축 파일 미리보기 (시스템 아이콘 · 폴더 탐색)</span>
-        <span class="lang-en">Archive browser (shell icons + folder navigation)</span>
+<!-- ───────── Gallery ───────── -->
+<section class="gallery">
+  <div class="wrap">
+    <span class="eyebrow">§ <span class="lang-ko">화면</span><span class="lang-en">Plates</span></span>
+    <h2>
+      <span class="lang-ko">화면으로<br>본 <em>OpenZip</em>.</span>
+      <span class="lang-en">A look at <em>OpenZip</em><br>in use.</span>
+    </h2>
+
+    <div class="gallery-grid">
+      <figure class="shot lg">
+        <div class="num">PLATE 01</div>
+        <img src="screenshots/archive-browser.png" alt="Archive browser with tree view and shell icons">
+        <figcaption class="cap">
+          <span class="ko"><span class="lang-ko">압축 파일 미리보기</span><span class="lang-en">Archive browser</span></span>
+          <span class="lat">tree · shell icons</span>
+        </figcaption>
+      </figure>
+      <figure class="shot md">
+        <div class="num">PLATE 02</div>
+        <img src="screenshots/context-menu.png" alt="Explorer right-click context menu">
+        <figcaption class="cap">
+          <span class="ko"><span class="lang-ko">탐색기 우클릭 메뉴</span><span class="lang-en">Explorer right-click</span></span>
+          <span class="lat">Win11 + Win10</span>
+        </figcaption>
+      </figure>
+      <figure class="shot sm">
+        <div class="num">PLATE 03</div>
+        <img src="screenshots/compress-options.png" alt="Compression options dialog">
+        <figcaption class="cap">
+          <span class="ko"><span class="lang-ko">압축 옵션</span><span class="lang-en">Compression options</span></span>
+          <span class="lat">level · password</span>
+        </figcaption>
+      </figure>
+      <figure class="shot sm">
+        <div class="num">PLATE 04</div>
+        <img src="screenshots/compress-progress.png" alt="Compress progress dialog">
+        <figcaption class="cap">
+          <span class="ko"><span class="lang-ko">압축 진행률</span><span class="lang-en">Compress progress</span></span>
+          <span class="lat">live throughput</span>
+        </figcaption>
+      </figure>
+      <figure class="shot sm">
+        <div class="num">PLATE 05</div>
+        <img src="screenshots/progress.png" alt="Extract progress dialog">
+        <figcaption class="cap">
+          <span class="ko"><span class="lang-ko">추출 진행률</span><span class="lang-en">Extract progress</span></span>
+          <span class="lat">한글 그대로</span>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── CLI / install ───────── -->
+<section class="cli">
+  <div class="wrap cli-grid">
+    <div>
+      <span class="eyebrow">§ <span class="lang-ko">명령줄</span><span class="lang-en">Command line</span></span>
+      <h2>
+        <span class="lang-ko">터미널에서<br>똑같이, <em>똑똑히</em>.</span>
+        <span class="lang-en">The same tool,<br>at the <em>shell</em>.</span>
+      </h2>
+      <p>
+        <span class="lang-ko">설치하면 <code class="mono">openzip</code> 명령이 PATH에 추가된다. GUI와 같은 엔진이 동작하며, 다중 스레드로 풀고 출력은 정렬되어 나온다.</span>
+        <span class="lang-en">After install, <code class="mono">openzip</code> joins your PATH. The CLI shares the engine with the GUI, extracts in parallel, and prints in deterministic order.</span>
+      </p>
+
+      <div class="req">
+        <div class="head"><span class="lang-ko">요구사항</span><span class="lang-en">Requirements</span></div>
+        <p style="margin: 0;">
+          <span class="lang-ko"><b>Windows 10</b> build 18362 (1903) <span class="lang-ko">이상</span> · <b>Windows 11</b> · <b>x64</b> 전용</span>
+          <span class="lang-en"><b>Windows 10</b> build 18362 (1903) or later · <b>Windows 11</b> · <b>x64</b> only</span>
+        </p>
       </div>
     </div>
-    <div class="shot">
-      <img src="screenshots/compress-options.png" alt="Compress options">
-      <div class="cap">
-        <span class="lang-ko">압축 옵션 (압축률 · 비밀번호)</span>
-        <span class="lang-en">Compress options (level + password)</span>
+
+    <div class="terminal" aria-label="CLI usage example">
+      <div class="terminal-bar">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span>PowerShell · openzip 0.3</span>
       </div>
-    </div>
-    <div class="shot">
-      <img src="screenshots/compress-progress.png" alt="Compress progress">
-      <div class="cap">
-        <span class="lang-ko">압축 진행률</span>
-        <span class="lang-en">Compress progress</span>
-      </div>
-    </div>
-    <div class="shot">
-      <img src="screenshots/progress.png" alt="Extract progress">
-      <div class="cap">
-        <span class="lang-ko">추출 진행률 (Korean filenames intact)</span>
-        <span class="lang-en">Extract progress (Korean filenames intact)</span>
+      <div class="terminal-body">
+<code><span class="ps">PS&gt;</span> <span class="cmd">openzip</span> <span class="arg">동영상_백업.zip</span></code>
+<code><span class="out">  ✓ <span class="ko">2026 여행/제주.mp4</span>          412.3 MB · 22%</span></code>
+<code><span class="out">  ✓ <span class="ko">2026 여행/부산_야경.mov</span>      218.7 MB · 18%</span></code>
+<code><span class="out">  ✓ <span class="ko">2026 여행/계획서.hwp</span>           38.4 KB · 41%</span></code>
+<code><span class="out"><span class="ok">  Done.</span> 3 files · 4.2 s · 671 MB → 542 MB</span></code>
+<code>&nbsp;</code>
+<code><span class="ps">PS&gt;</span> <span class="cmd">openzip</span> <span class="flag">-c</span> <span class="arg">.\프로젝트\</span> <span class="flag">--password</span> <span class="arg">****</span></code>
+<code><span class="out">  packing 124 entries · AES-256 · level=normal</span></code>
+<code><span class="out"><span class="ok">  Done.</span> <span class="ko">프로젝트.zip</span> · 18.6 MB · 1.7 s</span></code>
       </div>
     </div>
   </div>
 </section>
 
-<section>
-  <h2>
-    <span class="lang-ko">시스템 요구사항</span>
-    <span class="lang-en">Requirements</span>
-  </h2>
-  <div class="install">
-    <p>
-      <span class="lang-ko">Windows 10 1903 (build 18362) 이상 또는 Windows 11. x64 전용.</span>
-      <span class="lang-en">Windows 10 1903 (build 18362) or later, or Windows 11. x64 only.</span>
-    </p>
-    <p>
-      <span class="lang-ko">Microsoft Store 설치는 자동 업데이트와 코드 서명이 함께 처리됩니다. 사이드로드 설치는 GitHub Releases의 <code>.msix</code>를 받아서:</span>
-      <span class="lang-en">Microsoft Store install handles signing and updates. For sideload, grab the <code>.msix</code> from GitHub Releases and:</span>
-    </p>
-<pre>Add-AppxPackage .\OpenZip_0.3.0.msix</pre>
-    <p style="margin: 12px 0 0;">
-      <span class="lang-ko">설치 후 탐색기에서 .zip 파일 우클릭 또는 파일·폴더 우클릭 → "OpenZip" 메뉴.</span>
-      <span class="lang-en">After install, right-click any .zip file (or any file/folder) and pick the "OpenZip" submenu.</span>
-    </p>
-  </div>
-</section>
+<!-- ───────── Colophon ───────── -->
+<footer class="colophon">
+  <div class="wrap">
+    <div class="col-grid">
+      <div>
+        <div class="brand"><span class="seal">壓</span>OpenZip</div>
+        <div class="brand-sub">
+          <span class="lang-ko">≈ 2 MB의 오픈소스 Windows ZIP.</span>
+          <span class="lang-en">A small open-source ZIP for Windows.</span>
+        </div>
+      </div>
 
-<footer>
-  <p>
-    MIT License · <a href="https://github.com/vitaldb/openzip">github.com/vitaldb/openzip</a> ·
-    <span class="lang-ko">Seoul National University Hospital · VitalDB Lab</span>
-    <span class="lang-en">VitalDB Lab, Seoul National University Hospital</span>
-  </p>
+      <div>
+        <h4><span class="lang-ko">받기</span><span class="lang-en">Get it</span></h4>
+        <p><a href="https://github.com/vitaldb/openzip/releases/latest"><span class="lang-ko">최신 릴리스</span><span class="lang-en">Latest release</span></a></p>
+        <p><a href="https://github.com/vitaldb/openzip/releases">All releases</a></p>
+      </div>
+
+      <div>
+        <h4><span class="lang-ko">소스</span><span class="lang-en">Source</span></h4>
+        <p><a href="https://github.com/vitaldb/openzip">github.com/vitaldb/openzip</a></p>
+        <p><a href="https://github.com/vitaldb/openzip/issues">Issues</a></p>
+      </div>
+
+      <div>
+        <h4><span class="lang-ko">만든 곳</span><span class="lang-en">Made at</span></h4>
+        <p>
+          <span class="lang-ko">서울대학교병원<br>VitalDB Lab</span>
+          <span class="lang-en">VitalDB Lab,<br>Seoul National University Hospital</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="baseline">
+      <span>MIT License · © 2026 Hyung-Chul Lee</span>
+      <span>Set in Fraunces · Gowun Batang · IBM Plex · JetBrains Mono</span>
+    </div>
+  </div>
 </footer>
 
-</div>
-
 <script>
-(function() {
-  const KEY = 'openzip-lang';
-  const btn = document.getElementById('langBtn');
+(function () {
+  // Bilingual toggle (Korean default; remembers choice).
+  var KEY = 'openzip-lang';
+  var btn = document.getElementById('langBtn');
   function apply(lang) {
     if (lang === 'en') {
       document.body.classList.add('en');
@@ -275,15 +941,15 @@
       btn.textContent = 'English';
     }
   }
-  let saved = null;
+  var saved = null;
   try { saved = localStorage.getItem(KEY); } catch (e) {}
   if (!saved) {
-    const nav = (navigator.language || 'en').toLowerCase();
-    saved = nav.startsWith('ko') ? 'ko' : 'en';
+    var nav = (navigator.language || 'en').toLowerCase();
+    saved = nav.indexOf('ko') === 0 ? 'ko' : 'en';
   }
   apply(saved);
-  btn.addEventListener('click', function() {
-    const next = document.body.classList.contains('en') ? 'ko' : 'en';
+  btn.addEventListener('click', function () {
+    var next = document.body.classList.contains('en') ? 'ko' : 'en';
     apply(next);
     try { localStorage.setItem(KEY, next); } catch (e) {}
   });
