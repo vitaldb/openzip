@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/secure_string.h"
+
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -45,6 +47,16 @@ struct CommandLine {
     bool show_browser = false;  // true when invoked with bare zip path (file-association double-click)
     bool valid        = true;
     std::wstring error;
+
+    // Wipe the plaintext password when this struct dies. Each std::wstring
+    // copy lives in its own buffer, so every copy must reach destruction
+    // to be scrubbed — treat as defense-in-depth.
+    ~CommandLine() { SecureZero(password); }
+    CommandLine() = default;
+    CommandLine(const CommandLine&) = default;
+    CommandLine(CommandLine&&) = default;
+    CommandLine& operator=(const CommandLine&) = default;
+    CommandLine& operator=(CommandLine&&) = default;
 };
 
 // Parse a Win32 command-line string (typically GetCommandLineW()) and resolve target_dir.

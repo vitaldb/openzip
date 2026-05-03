@@ -236,6 +236,39 @@ std::wstring AppExePath() {
     return path;
 }
 
+// Quote an argument for a CreateProcessW command line per the rules
+// CommandLineToArgvW uses to parse it back (MSDN "Parsing C++ command-line
+// arguments"). NTFS forbids `"` in filenames, so in practice this is a
+// formality for the path case — but quoting correctly closes a command-line
+// injection class that would otherwise reappear if the caller is changed
+// to forward arbitrary strings (e.g. a future --comment option).
+// Backslashes need doubling only when they precede a `"` (or end the argument).
+std::wstring QuoteForCreateProcess(const std::wstring& arg) {
+    std::wstring out;
+    out.reserve(arg.size() + 2);
+    out.push_back(L'"');
+    for (size_t i = 0; i < arg.size(); ++i) {
+        size_t backslashes = 0;
+        while (i < arg.size() && arg[i] == L'\\') {
+            ++backslashes;
+            ++i;
+        }
+        if (i == arg.size()) {
+            out.append(backslashes * 2, L'\\');
+            break;
+        }
+        if (arg[i] == L'"') {
+            out.append(backslashes * 2 + 1, L'\\');
+            out.push_back(L'"');
+        } else {
+            out.append(backslashes, L'\\');
+            out.push_back(arg[i]);
+        }
+    }
+    out.push_back(L'"');
+    return out;
+}
+
 void LaunchApp(const std::wstring& zip_path, CmdKind kind) {
     std::wstring exe = AppExePath();
     Log(L"LaunchApp exe=%s zip=%s kind=%d", exe.c_str(), zip_path.c_str(), static_cast<int>(kind));
@@ -243,8 +276,9 @@ void LaunchApp(const std::wstring& zip_path, CmdKind kind) {
 
     std::wstring cmdline;
     cmdline.reserve(exe.size() + zip_path.size() + 64);
-    cmdline += L"\"" + exe + L"\"";
-    cmdline += L" --extract \"" + zip_path + L"\"";
+    cmdline += QuoteForCreateProcess(exe);
+    cmdline += L" --extract ";
+    cmdline += QuoteForCreateProcess(zip_path);
     if (kind == CmdKind::Here) cmdline += L" --here";
     else if (kind == CmdKind::Folder) cmdline += L" --folder";
 
@@ -253,10 +287,13 @@ void LaunchApp(const std::wstring& zip_path, CmdKind kind) {
     wchar_t cwd[MAX_PATH] = L"";
     ::SHGetFolderPathW(nullptr, CSIDL_PROFILE, nullptr, 0, cwd);
 
+    // Pass exe explicitly as lpApplicationName so command-line parsing cannot
+    // be steered by argv[0] tricks; cmdline is still passed because OpenZipApp
+    // re-parses ::GetCommandLineW().
     STARTUPINFOW si{};
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi{};
-    BOOL ok = ::CreateProcessW(nullptr, cmdline.data(), nullptr, nullptr, FALSE,
+    BOOL ok = ::CreateProcessW(exe.c_str(), cmdline.data(), nullptr, nullptr, FALSE,
                                0, nullptr, *cwd ? cwd : nullptr, &si, &pi);
     if (ok) {
         Log(L"CreateProcessW ok pid=%lu", pi.dwProcessId);
@@ -273,29 +310,29 @@ void LaunchAppCompress(const std::vector<std::wstring>& paths, CmdKind kind) {
         exe.c_str(), paths.size(), static_cast<int>(kind));
     if (exe.empty() || paths.empty()) return;
 
-    std::wstring cmdline = L"\"" + exe + L"\" --compress";
+    std::wstring cmdline = QuoteForCreateProcess(exe) + L" --compress";
     if (kind == CmdKind::CompressBundle) {
         std::wstring parent = std::filesystem::path(paths[0]).parent_path().wstring();
         std::wstring base   = (paths.size() == 1)
             ? std::filesystem::path(paths[0]).stem().wstring()
             : std::filesystem::path(parent).filename().wstring();
-        // For a single directory selection, stem() may be empty — fall back to filename().
         if (base.empty()) base = std::filesystem::path(paths[0]).filename().wstring();
         if (base.empty()) base = L"Archive";
-        cmdline += L" --mode bundle --output \"" + parent + L"\\" + base + L".zip\"";
+        std::wstring out_path = parent + L"\\" + base + L".zip";
+        cmdline += L" --mode bundle --output " + QuoteForCreateProcess(out_path);
     } else if (kind == CmdKind::CompressEach) {
         cmdline += L" --mode each";
     } else {
         cmdline += L" --mode prompt";
     }
-    for (const auto& p : paths) cmdline += L" --item \"" + p + L"\"";
+    for (const auto& p : paths) cmdline += L" --item " + QuoteForCreateProcess(p);
 
     Log(L"LaunchAppCompress cmdline=%s", cmdline.c_str());
     wchar_t cwd[MAX_PATH] = L"";
     ::SHGetFolderPathW(nullptr, CSIDL_PROFILE, nullptr, 0, cwd);
     STARTUPINFOW si{}; si.cb = sizeof(si);
     PROCESS_INFORMATION pi{};
-    if (::CreateProcessW(nullptr, cmdline.data(), nullptr, nullptr, FALSE,
+    if (::CreateProcessW(exe.c_str(), cmdline.data(), nullptr, nullptr, FALSE,
                          0, nullptr, *cwd ? cwd : nullptr, &si, &pi)) {
         Log(L"LaunchAppCompress CreateProcessW ok pid=%lu", pi.dwProcessId);
         ::CloseHandle(pi.hThread); ::CloseHandle(pi.hProcess);

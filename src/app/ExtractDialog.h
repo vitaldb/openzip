@@ -4,6 +4,7 @@
 #include "resource.h"
 #include "CommandLine.h"
 #include "core/extractor.h"
+#include "core/secure_string.h"
 #include "dark_theme.h"
 
 #include <atomic>
@@ -86,6 +87,7 @@ private:
         bool was_wrong;
         std::wstring result_password;  // out
         bool cancelled;                // out
+        ~PasswordPromptArgs() { openzip::SecureZero(result_password); }
     };
     struct ConflictPromptArgs {
         std::wstring dest_path;

@@ -11,6 +11,9 @@ enum class PathError {
     AbsolutePath,    // entry contains drive letter, UNC, or leading slash
     EscapesTarget,   // normalized path escapes the target dir (zip-slip)
     ReservedName,    // contains a Windows reserved name (CON, PRN, etc.) or trailing dots/spaces
+    InvalidChar,     // contains characters NTFS bans or treats specially
+                     // (':' creates an Alternate Data Stream; '<>"|?*' or
+                     // control characters 0x00-0x1F are NTFS-illegal)
 };
 
 struct ValidatedPath {

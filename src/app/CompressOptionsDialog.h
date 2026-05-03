@@ -9,6 +9,7 @@ class CCompressOptionsDialog : public CDialogEx {
     DECLARE_DYNAMIC(CCompressOptionsDialog)
 public:
     explicit CCompressOptionsDialog(CWnd* pParent = nullptr);
+    ~CCompressOptionsDialog() override;
     enum { IDD = IDD_COMPRESS_OPTIONS };
 
     // Inputs (caller fills before DoModal):

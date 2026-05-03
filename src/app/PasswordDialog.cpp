@@ -15,6 +15,15 @@ CPasswordDialog::CPasswordDialog(const CString& archive_name, const CString& ent
       entry_name_(entry_name),
       was_wrong_(was_wrong) {}
 
+CPasswordDialog::~CPasswordDialog() {
+    // Wipe the plaintext password from this dialog's CString buffer before MFC frees it.
+    int len = password_.GetLength();
+    if (len > 0) {
+        ::SecureZeroMemory(password_.GetBuffer(), len * sizeof(wchar_t));
+        password_.ReleaseBuffer(0);
+    }
+}
+
 void CPasswordDialog::DoDataExchange(CDataExchange* pDX) {
     CDialogEx::DoDataExchange(pDX);
     DDX_Text(pDX, IDC_EDIT_PASSWORD, password_);

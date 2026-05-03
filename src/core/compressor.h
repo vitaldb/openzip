@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "extractor.h"  // for ConflictAction
+#include "secure_string.h"
 
 namespace openzip {
 
@@ -28,6 +29,16 @@ public:
         std::wstring password;                  // empty = no encryption
         Encoding filename_encoding = Encoding::Utf8;
         int concurrency = 0;                    // reserved for v1.x
+
+        // Wipe the plaintext password when this struct dies. Defense-in-depth
+        // — every copy lives in its own buffer and must reach destruction
+        // independently to be scrubbed.
+        ~Options() { SecureZero(password); }
+        Options() = default;
+        Options(const Options&) = default;
+        Options(Options&&) = default;
+        Options& operator=(const Options&) = default;
+        Options& operator=(Options&&) = default;
     };
 
     class ProgressCallback {

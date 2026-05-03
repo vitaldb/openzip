@@ -38,6 +38,29 @@ std::wstring AppExePath() {
     return p + L"OpenZipApp.exe";
 }
 
+// Quote an argument for CreateProcessW per the rules CommandLineToArgvW uses
+// to parse it back (MSDN). Mirrors the helper in shellext/ShellExt.cpp so the
+// classic Win10 shell extension also escapes arbitrary path content correctly.
+std::wstring QuoteForCreateProcess(const std::wstring& arg) {
+    std::wstring out;
+    out.reserve(arg.size() + 2);
+    out.push_back(L'"');
+    for (size_t i = 0; i < arg.size(); ++i) {
+        size_t backslashes = 0;
+        while (i < arg.size() && arg[i] == L'\\') { ++backslashes; ++i; }
+        if (i == arg.size()) { out.append(backslashes * 2, L'\\'); break; }
+        if (arg[i] == L'"') {
+            out.append(backslashes * 2 + 1, L'\\');
+            out.push_back(L'"');
+        } else {
+            out.append(backslashes, L'\\');
+            out.push_back(arg[i]);
+        }
+    }
+    out.push_back(L'"');
+    return out;
+}
+
 void Log(const wchar_t* msg) {
     wchar_t logdir[MAX_PATH];
     if (FAILED(::SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, logdir))) return;
@@ -57,13 +80,17 @@ void Log(const wchar_t* msg) {
     ::CloseHandle(h);
 }
 
-bool LaunchApp(const std::wstring& cmdline) {
+bool LaunchApp(const std::wstring& exe, const std::wstring& cmdline) {
     std::wstring c = cmdline;
     wchar_t cwd[MAX_PATH] = L"";
     ::SHGetFolderPathW(nullptr, CSIDL_PROFILE, nullptr, 0, cwd);
     STARTUPINFOW si{}; si.cb = sizeof(si);
     PROCESS_INFORMATION pi{};
-    BOOL ok = ::CreateProcessW(nullptr, c.data(), nullptr, nullptr, FALSE,
+    // Pass exe explicitly as lpApplicationName so the parser cannot be steered
+    // by argv[0] tricks. cmdline still includes a (correctly quoted) argv[0]
+    // because OpenZipApp.exe re-parses ::GetCommandLineW() and its own argv[0]
+    // is expected to be present.
+    BOOL ok = ::CreateProcessW(exe.c_str(), c.data(), nullptr, nullptr, FALSE,
                                0, nullptr, *cwd ? cwd : nullptr, &si, &pi);
     if (ok) { ::CloseHandle(pi.hThread); ::CloseHandle(pi.hProcess); }
     return ok != FALSE;
@@ -176,30 +203,33 @@ public:
             return items_.empty() ? L"" : fs::path(items_[0]).parent_path().wstring();
         };
 
+        std::wstring quoted_exe = QuoteForCreateProcess(exe);
+
         if (cmd_id == id_extract_here_) {
-            cmdline = L"\"" + exe + L"\" --extract \"" + items_[0] + L"\" --here";
+            cmdline = quoted_exe + L" --extract " + QuoteForCreateProcess(items_[0]) + L" --here";
         } else if (cmd_id == id_extract_to_folder_) {
-            cmdline = L"\"" + exe + L"\" --extract \"" + items_[0] + L"\" --folder";
+            cmdline = quoted_exe + L" --extract " + QuoteForCreateProcess(items_[0]) + L" --folder";
         } else if (cmd_id == id_compress_bundle_) {
             std::wstring parent = first_parent();
             std::wstring base = items_.size() == 1
                 ? fs::path(items_[0]).stem().wstring()
                 : fs::path(parent).filename().wstring();
-            cmdline = L"\"" + exe + L"\" --compress --mode bundle --output \""
-                    + parent + L"\\" + base + L".zip\"";
-            for (auto& p : items_) cmdline += L" --item \"" + p + L"\"";
+            std::wstring out_path = parent + L"\\" + base + L".zip";
+            cmdline = quoted_exe + L" --compress --mode bundle --output "
+                    + QuoteForCreateProcess(out_path);
+            for (auto& p : items_) cmdline += L" --item " + QuoteForCreateProcess(p);
         } else if (cmd_id == id_compress_each_) {
-            cmdline = L"\"" + exe + L"\" --compress --mode each";
-            for (auto& p : items_) cmdline += L" --item \"" + p + L"\"";
+            cmdline = quoted_exe + L" --compress --mode each";
+            for (auto& p : items_) cmdline += L" --item " + QuoteForCreateProcess(p);
         } else if (cmd_id == id_compress_prompt_) {
-            cmdline = L"\"" + exe + L"\" --compress --mode prompt";
-            for (auto& p : items_) cmdline += L" --item \"" + p + L"\"";
+            cmdline = quoted_exe + L" --compress --mode prompt";
+            for (auto& p : items_) cmdline += L" --item " + QuoteForCreateProcess(p);
         } else {
             return E_NOTIMPL;
         }
 
         Log(cmdline.c_str());
-        return LaunchApp(cmdline) ? S_OK : E_FAIL;
+        return LaunchApp(exe, cmdline) ? S_OK : E_FAIL;
     }
 
     IFACEMETHODIMP GetCommandString(UINT_PTR, UINT, UINT*, CHAR* name, UINT cchMax) override {

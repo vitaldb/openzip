@@ -9,6 +9,7 @@ class CPasswordDialog : public CDialogEx {
 public:
     CPasswordDialog(const CString& archive_name, const CString& entry_name,
                     bool was_wrong, CWnd* parent = nullptr);
+    ~CPasswordDialog() override;
 
     enum { IDD = IDD_PASSWORD };
 

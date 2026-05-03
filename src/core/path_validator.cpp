@@ -48,6 +48,36 @@ std::vector<std::wstring> SplitOnBackslash(const std::wstring& s) {
 
 }  // namespace
 
+// True if the component contains a character that NTFS forbids in filenames
+// (':', '<', '>', '"', '|', '?', '*') or any C0 control character (0x00-0x1F).
+//
+// We single out ':' because on NTFS it does not raise an error — it silently
+// creates or addresses an Alternate Data Stream attached to a sibling file.
+// A ZIP entry named `legitimate.txt:malicious.exe` could land inside an
+// existing `legitimate.txt` as a hidden ADS, which most users have no way
+// to inspect. The other characters are rejected for consistency: NTFS would
+// fail the create with ERROR_INVALID_NAME, but reporting it as a security
+// refusal is clearer than a generic IO error and avoids leaving partial
+// state behind from earlier entries that did succeed.
+bool ComponentHasInvalidChar(const std::wstring& component) {
+    for (wchar_t c : component) {
+        if (c < 0x20) return true;
+        switch (c) {
+            case L':':
+            case L'<':
+            case L'>':
+            case L'"':
+            case L'|':
+            case L'?':
+            case L'*':
+                return true;
+            default:
+                break;
+        }
+    }
+    return false;
+}
+
 bool IsReservedName(const std::wstring& component) {
     // Strip everything from the first dot. "CON.txt" → "CON" is reserved.
     std::wstring base = component;
@@ -112,6 +142,10 @@ ValidatedPath ValidatePath(const std::wstring& zip_entry_name, const fs::path& t
                 return result;
             }
             continue;
+        }
+        if (ComponentHasInvalidChar(comp)) {
+            result.error = PathError::InvalidChar;
+            return result;
         }
         if (IsReservedName(comp)) {
             result.error = PathError::ReservedName;
