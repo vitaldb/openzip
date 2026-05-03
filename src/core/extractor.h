@@ -21,6 +21,7 @@ public:
         BombRefused,
         UnsafePath,
         ReservedName,
+        UnsafeEntry,    // symlink, reparse point, or other dangerous metadata
     };
 
     enum class ConflictAction {
@@ -40,6 +41,7 @@ public:
         std::time_t modified_time = 0;
         std::time_t created_time  = 0;
         bool is_dir = false;
+        bool is_symlink = false;      // Unix symlink (mode 0o120000) or Windows reparse point
         bool needs_password = false;
     };
 
@@ -89,8 +91,19 @@ public:
                           const Options& opts = {});
 
     // Decompression bomb thresholds (see plan §8). Static so tests can override if needed.
-    static constexpr uint64_t kBombRatioLimit = 100;                            // 100×
-    static constexpr uint64_t kBombSizeLimit  = 10ULL * 1024 * 1024 * 1024;     // 10 GB
+    //
+    // The guard fires when the total compressed → uncompressed ratio is
+    // pathological (>= kBombRatioLimit) AND any of the following holds:
+    //   - total uncompressed size >= kBombSizeLimit
+    //   - any single entry's uncompressed size >= kBombPerEntryLimit
+    //
+    // Numbers chosen so that legitimate archives (large media folders, code
+    // repos, virtual disk images) pass while classic 42.zip-style bombs
+    // (ratio ≫ 100) are caught even when their post-decompression size is
+    // well under the 10 GiB total threshold.
+    static constexpr uint64_t kBombRatioLimit     = 100;                            // 100×
+    static constexpr uint64_t kBombSizeLimit      = 10ULL * 1024 * 1024 * 1024;     // 10 GiB total
+    static constexpr uint64_t kBombPerEntryLimit  = 4ULL  * 1024 * 1024 * 1024;     // 4 GiB per entry
 };
 
 const char* ResultName(Extractor::Result r);

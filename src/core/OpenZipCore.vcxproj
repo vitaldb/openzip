@@ -71,6 +71,7 @@
     <ClInclude Include="extractor.h" />
     <ClInclude Include="filename_decoder.h" />
     <ClInclude Include="path_validator.h" />
+    <ClInclude Include="secure_string.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="compressor.cpp" />

@@ -8,8 +8,30 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace openzip {
+
+// SECURITY_ATTRIBUTES whose DACL grants access only to the current user's SID.
+// Used to harden the single-instance mutex and named pipe so other users in
+// the same Windows session cannot send forged command lines to the leader.
+class UserOnlySecurityAttributes {
+public:
+    UserOnlySecurityAttributes();
+    ~UserOnlySecurityAttributes();
+    UserOnlySecurityAttributes(const UserOnlySecurityAttributes&) = delete;
+    UserOnlySecurityAttributes& operator=(const UserOnlySecurityAttributes&) = delete;
+
+    // Returns nullptr on failure (caller falls back to default DACL).
+    SECURITY_ATTRIBUTES* get() { return valid_ ? &sa_ : nullptr; }
+
+private:
+    bool valid_ = false;
+    SECURITY_ATTRIBUTES sa_{};
+    SECURITY_DESCRIPTOR sd_{};
+    PACL acl_ = nullptr;
+    PSID user_sid_ = nullptr;
+};
 
 // Session-scoped single-instance coordinator.
 //
@@ -59,6 +81,7 @@ private:
     HANDLE shutdown_event_ = nullptr;
     std::thread server_thread_;
     std::atomic<bool> shutting_down_{false};
+    UserOnlySecurityAttributes sec_attrs_;
 
     std::mutex queue_mtx_;
     std::condition_variable queue_cv_;

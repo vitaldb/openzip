@@ -5,6 +5,8 @@
 #include <ctime>
 #include <vector>
 
+#include "secure_string.h"
+
 #include <mz.h>
 #include <mz_strm.h>
 #include <mz_strm_os.h>
@@ -188,7 +190,9 @@ Compressor::Result Compressor::Compress(const std::vector<fs::path>& sources,
 
     // --- Task 1.6: Password / AES-256 ---
     // Store the UTF-8 password in a string that outlives the writer calls.
+    // Wrapped in a guard so it is zeroed regardless of which return path runs.
     std::string pw_utf8;
+    SecureZeroOnExit<std::string> pw_guard(pw_utf8);
     if (!opts.password.empty()) {
         pw_utf8 = WideToCodepage(opts.password, CP_UTF8);
         mz_zip_writer_set_password(wg.w, pw_utf8.c_str());

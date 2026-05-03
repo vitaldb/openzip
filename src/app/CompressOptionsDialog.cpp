@@ -10,6 +10,21 @@ IMPLEMENT_DYNAMIC(CCompressOptionsDialog, CDialogEx)
 CCompressOptionsDialog::CCompressOptionsDialog(CWnd* pParent)
     : CDialogEx(IDD, pParent) {}
 
+CCompressOptionsDialog::~CCompressOptionsDialog() {
+    // Wipe both password CStrings before MFC frees their buffers.
+    auto wipe = [](CString& s) {
+        int n = s.GetLength();
+        if (n > 0) {
+            ::SecureZeroMemory(s.GetBuffer(), n * sizeof(wchar_t));
+            s.ReleaseBuffer(0);
+        }
+    };
+    wipe(password_);
+    wipe(password_cfm_);
+    // chosen_options.password (std::wstring copy of password_) is wiped by
+    // openzip::Compressor::Options' own destructor.
+}
+
 BEGIN_MESSAGE_MAP(CCompressOptionsDialog, CDialogEx)
     ON_BN_CLICKED(IDC_COMPRESS_BROWSE,  &CCompressOptionsDialog::OnBrowse)
     ON_BN_CLICKED(IDC_COMPRESS_SHOW_PW, &CCompressOptionsDialog::OnTogglePasswordVisibility)

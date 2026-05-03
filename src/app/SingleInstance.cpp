@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "SingleInstance.h"
 
+#include <AclAPI.h>
+
 #include <chrono>
 
 namespace openzip {
@@ -20,11 +22,60 @@ std::wstring SessionScopedName(const wchar_t* prefix) {
 
 }  // namespace
 
+// ---------------------------------------------------------------------------
+// UserOnlySecurityAttributes — restricts both kernel objects to the current
+// user. Without this, both `CreateMutexW(nullptr, ...)` and
+// `CreateNamedPipeW(..., nullptr)` use a default DACL that allows other users
+// in the same session to attach (Terminal Services / fast user switching).
+// An attacker could otherwise WriteFile() a forged "--password X --extract Y
+// --target attacker_dir" command line to the leader's pipe.
+
+UserOnlySecurityAttributes::UserOnlySecurityAttributes() {
+    HANDLE token = nullptr;
+    if (!::OpenProcessToken(::GetCurrentProcess(), TOKEN_QUERY, &token)) return;
+
+    DWORD needed = 0;
+    ::GetTokenInformation(token, TokenUser, nullptr, 0, &needed);
+    if (needed == 0) { ::CloseHandle(token); return; }
+
+    std::vector<uint8_t> token_buf(needed);
+    if (!::GetTokenInformation(token, TokenUser, token_buf.data(), needed, &needed)) {
+        ::CloseHandle(token);
+        return;
+    }
+    ::CloseHandle(token);
+
+    TOKEN_USER* tu = reinterpret_cast<TOKEN_USER*>(token_buf.data());
+    DWORD sid_len = ::GetLengthSid(tu->User.Sid);
+    user_sid_ = ::LocalAlloc(LPTR, sid_len);
+    if (!user_sid_) return;
+    if (!::CopySid(sid_len, user_sid_, tu->User.Sid)) return;
+
+    DWORD acl_size = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) - sizeof(DWORD) + sid_len;
+    acl_ = static_cast<PACL>(::LocalAlloc(LPTR, acl_size));
+    if (!acl_) return;
+    if (!::InitializeAcl(acl_, acl_size, ACL_REVISION)) return;
+    if (!::AddAccessAllowedAce(acl_, ACL_REVISION, GENERIC_ALL, user_sid_)) return;
+
+    if (!::InitializeSecurityDescriptor(&sd_, SECURITY_DESCRIPTOR_REVISION)) return;
+    if (!::SetSecurityDescriptorDacl(&sd_, TRUE, acl_, FALSE)) return;
+
+    sa_.nLength = sizeof(sa_);
+    sa_.lpSecurityDescriptor = &sd_;
+    sa_.bInheritHandle = FALSE;
+    valid_ = true;
+}
+
+UserOnlySecurityAttributes::~UserOnlySecurityAttributes() {
+    if (acl_)      ::LocalFree(acl_);
+    if (user_sid_) ::LocalFree(user_sid_);
+}
+
 bool SingleInstance::TryAcquireOrSend(const std::wstring& cmdline) {
     mutex_name_ = SessionScopedName(L"Local\\OpenZipApp_SingleInstance_");
     pipe_name_ = SessionScopedName(L"\\\\.\\pipe\\OpenZipApp_");
 
-    mutex_handle_ = ::CreateMutexW(nullptr, FALSE, mutex_name_.c_str());
+    mutex_handle_ = ::CreateMutexW(sec_attrs_.get(), FALSE, mutex_name_.c_str());
     if (!mutex_handle_) {
         // Mutex API failed. Run as a standalone leader (no de-duping).
         Enqueue(cmdline);
@@ -103,10 +154,11 @@ void SingleInstance::ServerLoop() {
     while (!shutting_down_.load()) {
         HANDLE pipe = ::CreateNamedPipeW(
             pipe_name_.c_str(),
-            PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED,
-            PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
+            PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT |
+                PIPE_REJECT_REMOTE_CLIENTS,
             PIPE_UNLIMITED_INSTANCES,
-            0, kPipeBufferBytes, 0, nullptr);
+            0, kPipeBufferBytes, 0, sec_attrs_.get());
         if (pipe == INVALID_HANDLE_VALUE) break;
 
         OVERLAPPED ov{};

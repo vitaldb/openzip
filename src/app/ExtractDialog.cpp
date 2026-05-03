@@ -149,7 +149,14 @@ LRESULT CExtractDialog::OnPromptPassword(WPARAM, LPARAM lp) {
     CString entry(args->entry.c_str());
     CPasswordDialog dlg(archive, entry, args->was_wrong, this);
     if (dlg.DoModal() == IDOK) {
-        args->result_password = static_cast<const wchar_t*>(dlg.password());
+        CString pw = dlg.password();
+        args->result_password.assign(static_cast<const wchar_t*>(pw), pw.GetLength());
+        // CString's internal buffer holds a plaintext copy too — wipe it
+        // before this temporary goes out of scope.
+        if (pw.GetLength() > 0) {
+            ::SecureZeroMemory(pw.GetBuffer(), pw.GetLength() * sizeof(wchar_t));
+            pw.ReleaseBuffer(0);
+        }
         args->cancelled = false;
     } else {
         args->result_password.clear();
