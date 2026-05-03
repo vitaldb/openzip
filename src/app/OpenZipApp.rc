@@ -25,17 +25,17 @@ LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 //   * Action buttons: right-aligned, 60×16 dlu, OK before Cancel (Win11 convention)
 //   * "Heading + value" label pairs collapsed to value-only where context is clear
 
-IDD_ARCHIVE_BROWSER DIALOGEX 0, 0, 540, 360
-STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+IDD_ARCHIVE_BROWSER DIALOGEX 0, 0, 760, 400
+STYLE DS_SETFONT | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX
 CAPTION "OpenZip"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    LTEXT           "", IDC_BROWSE_ZIPPATH, 16, 14, 508, 12, SS_NOPREFIX | SS_PATHELLIPSIS
+    LTEXT           "", IDC_BROWSE_ZIPPATH, 16, 14, 728, 12, SS_NOPREFIX | SS_PATHELLIPSIS
     CONTROL         "", IDC_BROWSE_LIST, "SysListView32",
-                    LVS_REPORT | LVS_SHOWSELALWAYS | LVS_AUTOARRANGE | WS_BORDER | WS_TABSTOP,
-                    16, 32, 508, 296
-    DEFPUSHBUTTON   "Extract All", IDC_BROWSE_EXTRACT_ALL, 384, 338, 70, 16
-    PUSHBUTTON      "Close",       IDCANCEL,               464, 338, 60, 16
+                    LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER | WS_TABSTOP,
+                    16, 32, 728, 336
+    DEFPUSHBUTTON   "Extract All", IDC_BROWSE_EXTRACT_ALL, 604, 378, 70, 16
+    PUSHBUTTON      "Close",       IDCANCEL,               684, 378, 60, 16
 END
 
 IDD_COMPRESS_OPTIONS DIALOGEX 0, 0, 360, 224
@@ -193,6 +193,9 @@ BEGIN
     IDS_DIALOG_BROWSE_TITLE         "OpenZip — Archive Contents"
     IDS_LABEL_BROWSE_NAME           "Name"
     IDS_LABEL_BROWSE_SIZE           "Size"
+    IDS_LABEL_BROWSE_PACKED         "Packed"
+    IDS_LABEL_BROWSE_MODIFIED       "Modified"
+    IDS_LABEL_BROWSE_CREATED        "Created"
     IDS_BUTTON_EXTRACT_ALL          "Extract All"
     IDS_BUTTON_EXTRACT_SELECTED     "Extract"
     IDS_BUTTON_CLOSE                "Close"
@@ -249,6 +252,9 @@ BEGIN
     IDS_DIALOG_BROWSE_TITLE         "OpenZip — 압축 파일 내용"
     IDS_LABEL_BROWSE_NAME           "이름"
     IDS_LABEL_BROWSE_SIZE           "크기"
+    IDS_LABEL_BROWSE_PACKED         "압축 후"
+    IDS_LABEL_BROWSE_MODIFIED       "수정한 날짜"
+    IDS_LABEL_BROWSE_CREATED        "생성한 날짜"
     IDS_BUTTON_EXTRACT_ALL          "모두 풀기"
     IDS_BUTTON_EXTRACT_SELECTED     "압축 풀기"
     IDS_BUTTON_CLOSE                "닫기"

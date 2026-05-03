@@ -76,6 +76,7 @@ BOOL CCompressDialog::OnInitDialog() {
         openzip::dark_theme::EnableForWindow(GetSafeHwnd());
     }
     openzip::flat::ApplyToDialog(GetSafeHwnd());
+    openzip::icons::ApplyDialogIcon(GetSafeHwnd(), AfxGetResourceHandle(), IDR_MAINFRAME);
 
     // Apply localized caption + labels at runtime.
     CString s;

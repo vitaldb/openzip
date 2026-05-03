@@ -15,3 +15,13 @@ namespace openzip::flat {
 void ApplyToDialog(HWND dlg);
 
 }  // namespace openzip::flat
+
+namespace openzip::icons {
+
+// Set the dialog's title-bar (small) and taskbar (big) icons by loading
+// the named resource at the exact pixel sizes the OS asks for. Avoids
+// GDI scaling a 32x32 master frame down to 16x16 (which is blurry) by
+// selecting the matching frame from a multi-res .ico.
+void ApplyDialogIcon(HWND dlg, HINSTANCE module, int icon_id);
+
+}  // namespace openzip::icons

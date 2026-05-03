@@ -14,10 +14,9 @@
     <ProjectGuid>{1A2B3C4D-0003-4000-8000-100000000003}</ProjectGuid>
     <RootNamespace>OpenZipApp</RootNamespace>
     <ProjectName>OpenZipApp</ProjectName>
-    <!-- Project name kept as OpenZipApp for solution stability; the EXE
-         output is renamed to openzip.exe so the Microsoft Store appExecutionAlias
-         resolves cleanly as `openzip` from any shell. -->
-    <TargetName>openzip</TargetName>
+    <!-- Output: OpenZipApp.exe (GUI subsystem). The CLI counterpart emits
+         openzip.exe from src/cli/OpenZipCli.vcxproj — a separate project. -->
+    <TargetName>OpenZipApp</TargetName>
     <Keyword>MFCProj</Keyword>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>

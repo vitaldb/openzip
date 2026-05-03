@@ -50,9 +50,15 @@ Palette MakePalette() {
     return p;
 }
 
-void Paint(HWND btn, State* st) {
-    PAINTSTRUCT ps;
-    HDC dc = ::BeginPaint(btn, &ps);
+void Paint(HWND btn, State* st, HDC override_dc = nullptr) {
+    // Two callers: WM_PAINT uses BeginPaint/EndPaint; WM_PRINTCLIENT (and the
+    // BeginBufferedAnimation snapshots that themed buttons use during click
+    // animations) supply the target DC in wParam — painting to BeginPaint's
+    // DC in that case would draw to the wrong surface and the animation
+    // frames would fall back to the system look.
+    PAINTSTRUCT ps{};
+    HDC dc = override_dc;
+    if (!dc) dc = ::BeginPaint(btn, &ps);
     if (!dc) return;
 
     RECT rc; ::GetClientRect(btn, &rc);
@@ -102,7 +108,7 @@ void Paint(HWND btn, State* st) {
         ::DrawFocusRect(dc, &fr);
     }
 
-    ::EndPaint(btn, &ps);
+    if (!override_dc) ::EndPaint(btn, &ps);
 }
 
 LRESULT CALLBACK Proc(HWND btn, UINT msg, WPARAM wp, LPARAM lp,
@@ -113,6 +119,31 @@ LRESULT CALLBACK Proc(HWND btn, UINT msg, WPARAM wp, LPARAM lp,
         case WM_PAINT:
             Paint(btn, st);
             return 0;
+
+        case WM_PRINTCLIENT:
+            // UxTheme's BeginBufferedPaint / BeginBufferedAnimation composite
+            // themed buttons via this message — wParam is the target DC of
+            // the back buffer / animation snapshot, so paint to that DC
+            // (not BeginPaint's). Without this, the click-press animation
+            // falls back to the system themed look mid-frame.
+            Paint(btn, st, reinterpret_cast<HDC>(wp));
+            return 0;
+
+        case WM_SETTEXT: {
+            // Themed buttons can short-circuit a text change by drawing
+            // directly to the window DC (bypassing WM_PAINT), reverting the
+            // control to the system look. Let the BUTTON class store the
+            // new caption, then force a full repaint through our subclass.
+            LRESULT r = ::DefSubclassProc(btn, msg, wp, lp);
+            ::InvalidateRect(btn, nullptr, TRUE);
+            return r;
+        }
+
+        case WM_ENABLE:
+            // Same risk on enable/disable transitions: themed BUTTON can
+            // repaint without going through our WM_PAINT.
+            ::InvalidateRect(btn, nullptr, TRUE);
+            break;
 
         case WM_ERASEBKGND:
             // We fully repaint; suppress default erase to avoid flicker.
@@ -191,3 +222,24 @@ void ApplyToDialog(HWND dlg) {
 }
 
 }  // namespace openzip::flat
+
+namespace openzip::icons {
+
+void ApplyDialogIcon(HWND dlg, HINSTANCE module, int icon_id) {
+    if (!dlg || !module) return;
+    auto load = [&](int cx, int cy) -> HICON {
+        return reinterpret_cast<HICON>(::LoadImageW(
+            module, MAKEINTRESOURCEW(icon_id), IMAGE_ICON,
+            cx, cy, LR_DEFAULTCOLOR));
+    };
+    if (HICON h = load(::GetSystemMetrics(SM_CXSMICON),
+                       ::GetSystemMetrics(SM_CYSMICON))) {
+        ::SendMessageW(dlg, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(h));
+    }
+    if (HICON h = load(::GetSystemMetrics(SM_CXICON),
+                       ::GetSystemMetrics(SM_CYICON))) {
+        ::SendMessageW(dlg, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(h));
+    }
+}
+
+}  // namespace openzip::icons

@@ -6,18 +6,17 @@
 #include "core/extractor.h"
 
 #include <filesystem>
+#include <set>
 #include <vector>
 
-// CArchiveBrowserDialog — shown when the user double-clicks a .zip in Explorer
-// (file-association invocation: openzip.exe <zip>).
+// CArchiveBrowserDialog — shown on .zip double-click (file association).
 //
-// Caller sets `zip_path` before calling DoModal().
-//
-// DoModal() returns IDOK     → caller should run CExtractDialog. The dialog
-//                              has populated `chosen_extract_dir` (target) and
-//                              `chosen_filter_names` (entries to extract;
-//                              empty = all).
-// DoModal() returns IDCANCEL → user closed the browser without extracting.
+// The flat ZIP central directory is rendered as a hierarchical tree:
+// folders show ▶ / ▼ glyphs and can be expanded inline; descendants
+// are indented per depth. Selection drives "Extract" (selected entries
+// only, recursively for folders); "Extract All" with no selection
+// extracts everything. File double-click extracts that one entry to a
+// chosen folder.
 
 class CArchiveBrowserDialog : public CDialogEx {
     DECLARE_DYNAMIC(CArchiveBrowserDialog)
@@ -36,30 +35,51 @@ protected:
     BOOL OnInitDialog() override;
     void DoDataExchange(CDataExchange* pDX) override;
 
-    afx_msg void OnExtractAll();
+    afx_msg void   OnExtractAll();
     afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
-    afx_msg void OnListDoubleClick(NMHDR* hdr, LRESULT* result);
-    afx_msg void OnListItemChanged(NMHDR* hdr, LRESULT* result);
+    afx_msg void   OnListClick(NMHDR* hdr, LRESULT* result);
+    afx_msg void   OnListDoubleClick(NMHDR* hdr, LRESULT* result);
+    afx_msg void   OnListItemChanged(NMHDR* hdr, LRESULT* result);
+    afx_msg void   OnListCustomDraw(NMHDR* hdr, LRESULT* result);
+    afx_msg void   OnListRClick(NMHDR* hdr, LRESULT* result);
+    afx_msg void   OnSize(UINT nType, int cx, int cy);
+    afx_msg void   OnGetMinMaxInfo(MINMAXINFO* mmi);
     DECLARE_MESSAGE_MAP()
 
+    void RelayoutChildren(int cx, int cy);
+
 private:
-    void PopulateList();
-    void NavigateInto(const std::wstring& folder_name);
-    void NavigateUp();
+    // ── Tree model ──────────────────────────────────────────────────
+    // Each visible row in the list view corresponds to a Row entry.
+    struct Row {
+        std::wstring full_path;   // archive-relative path (no leading /)
+        std::wstring leaf;        // last segment (display label)
+        int          depth = 0;
+        bool         is_dir = false;
+        bool         is_expanded = false;
+        // Aggregate stats for folders (sum of all descendant files);
+        // for files, copies of Entry's own values.
+        uint64_t     uncompressed_size = 0;
+        uint64_t     compressed_size = 0;
+        std::time_t  modified_time = 0;
+        std::time_t  created_time  = 0;
+    };
+
+    void RebuildVisibleRows();   // builds visible_rows_ from entries_ + expanded_folders_
+    void RenderRows();           // pushes visible_rows_ into the listview
     void UpdateButtonLabel();
+    void ToggleFolderAt(int row_index);
 
-    // Show SHBrowseForFolderW for choosing the extraction destination.
-    // Returns true and fills `out` on OK; false on cancel.
     bool PickDestinationFolder(std::wstring& out);
-
-    // Expand a row (file or folder, real or synthetic) into the list of full
-    // archive entry names that should be extracted for it. For folders this
-    // includes the folder entry itself (if present) plus all descendants.
     void ExpandRowToEntryNames(const std::wstring& row_full_path,
                                bool row_is_dir,
                                std::vector<std::wstring>& out_set) const;
 
-    std::vector<openzip::Extractor::Entry> entries_;  // cached list of zip contents
-    std::wstring current_dir_;                        // empty = root, otherwise ends with '/'
-    CListCtrl    list_;                                // wired to IDC_BROWSE_LIST
+    std::vector<openzip::Extractor::Entry> entries_;
+    std::set<std::wstring>                 expanded_folders_;
+    std::vector<Row>                       visible_rows_;
+    CListCtrl                              list_;
+    HIMAGELIST                             sys_images_ = nullptr;  // not owned; do not free
+    int                                    icon_w_ = 16;
+    int                                    icon_h_ = 16;
 };

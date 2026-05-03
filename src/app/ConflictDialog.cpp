@@ -26,6 +26,7 @@ BOOL CConflictDialog::OnInitDialog() {
         openzip::dark_theme::EnableForWindow(GetSafeHwnd());
     }
     openzip::flat::ApplyToDialog(GetSafeHwnd());
+    openzip::icons::ApplyDialogIcon(GetSafeHwnd(), AfxGetResourceHandle(), IDR_MAINFRAME);
 
     CString s;
     s.LoadString(IDS_DIALOG_CONFLICT_TITLE);  SetWindowText(s);
