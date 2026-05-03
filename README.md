@@ -29,6 +29,27 @@ Add-AppxPackage .\OpenZip_0.3.0.msix
 
 System requirements: Windows 10 1903 (build 18362) or later, or Windows 11. x64 only.
 
+## Command line
+
+After install, `openzip` is on your PATH (via MSIX `appExecutionAlias`). When
+launched from a console, it runs in CLI mode — no dialogs, output to stdout:
+
+```powershell
+openzip foo.zip                                   # list entries (unzip -l)
+openzip --extract foo.zip --target out\           # extract
+openzip --compress --output out.zip --item dir\   # compress
+openzip --help                                    # usage
+```
+
+When launched from Explorer (double-click, right-click), the same binary
+runs the GUI dialogs. The mode is auto-detected from whether a parent
+console is attached.
+
+> **PowerShell quirk:** GUI-subsystem children don't block the shell, so
+> direct invocation from PowerShell may show the prompt before the output
+> arrives. Use `Start-Process openzip -Wait -RedirectStandardOutput out.txt`
+> for clean capture, or invoke from `cmd /c openzip ...`.
+
 ## Screenshots
 
 ### Archive browser

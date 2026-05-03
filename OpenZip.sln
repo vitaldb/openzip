@@ -15,6 +15,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CoreTests", "tests\CoreTest
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenZipShellExtClassic", "src\shellext_classic\OpenZipShellExtClassic.vcxproj", "{1A2B3C4D-0006-4000-8000-100000000006}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenZipCli", "src\cli\OpenZipCli.vcxproj", "{1A2B3C4D-0007-4000-8000-100000000007}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -45,6 +47,10 @@ Global
 		{1A2B3C4D-0006-4000-8000-100000000006}.Debug|x64.Build.0 = Debug|x64
 		{1A2B3C4D-0006-4000-8000-100000000006}.Release|x64.ActiveCfg = Release|x64
 		{1A2B3C4D-0006-4000-8000-100000000006}.Release|x64.Build.0 = Release|x64
+		{1A2B3C4D-0007-4000-8000-100000000007}.Debug|x64.ActiveCfg = Debug|x64
+		{1A2B3C4D-0007-4000-8000-100000000007}.Debug|x64.Build.0 = Debug|x64
+		{1A2B3C4D-0007-4000-8000-100000000007}.Release|x64.ActiveCfg = Release|x64
+		{1A2B3C4D-0007-4000-8000-100000000007}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

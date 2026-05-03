@@ -20,9 +20,7 @@ constexpr DWORD kLeaderGraceMs = 250;
 
 void ShowHelp() {
     CString text;
-    CString title;
     text.LoadString(IDS_HELP_TEXT);
-    title.LoadString(IDS_HELP_TITLE);
     AfxMessageBox(text, MB_OK | MB_ICONINFORMATION);
 }
 
@@ -112,6 +110,11 @@ void ProcessOne(const std::wstring& raw_cmdline) {
 BOOL COpenZipApp::InitInstance() {
     CWinApp::InitInstance();
     AfxEnableControlContainer();
+
+    // OpenZipApp.exe is the GUI binary — file-association double-click and
+    // shell-extension launches land here. The CLI entry point lives in the
+    // separate openzip.exe binary (src/cli/), built as a console-subsystem
+    // app so it blocks the parent shell properly. No console-attach hacks here.
 
     // Honour the user's preferred UI language. STRINGTABLEs in OpenZipApp.rc
     // are split between LANG_ENGLISH and LANG_KOREAN; LoadString picks

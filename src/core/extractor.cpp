@@ -117,6 +117,11 @@ Extractor::Entry BuildEntry(const mz_zip_file* fi) {
     e.decode_source = decoded.source;
     e.uncompressed_size = fi->uncompressed_size > 0 ? static_cast<uint64_t>(fi->uncompressed_size) : 0;
     e.compressed_size = fi->compressed_size > 0 ? static_cast<uint64_t>(fi->compressed_size) : 0;
+    // mz_zip_file::modified_date / creation_date are time_t (seconds since 1970 UTC).
+    e.modified_time = (fi->modified_date > 0)
+                      ? static_cast<std::time_t>(fi->modified_date) : 0;
+    e.created_time  = (fi->creation_date > 0)
+                      ? static_cast<std::time_t>(fi->creation_date) : 0;
     e.needs_password = (fi->flag & MZ_ZIP_FLAG_ENCRYPTED) != 0;
     e.is_dir = IsDirEntry(e, fi->filename, name_len);
     return e;

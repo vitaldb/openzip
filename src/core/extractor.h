@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <ctime>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -34,6 +35,10 @@ public:
         DecodeSource decode_source;   // for diagnostics / UI tooltip
         uint64_t uncompressed_size = 0;
         uint64_t compressed_size = 0;
+        // Last-modified / created time as Unix timestamps (seconds since
+        // 1970-01-01 UTC). 0 if the entry has no recorded date or it's invalid.
+        std::time_t modified_time = 0;
+        std::time_t created_time  = 0;
         bool is_dir = false;
         bool needs_password = false;
     };

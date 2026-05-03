@@ -223,7 +223,8 @@ HRESULT CopyToTaskMem(const wchar_t* src, LPWSTR* out) {
     return S_OK;
 }
 
-// Resolve the absolute path of OpenZipApp.exe (assumed to live next to this DLL).
+// Resolve the absolute path of OpenZipApp.exe (the GUI binary; the CLI
+// counterpart at openzip.exe is for shell users, not for shell-ext launches).
 std::wstring AppExePath() {
     wchar_t buf[MAX_PATH];
     DWORD n = ::GetModuleFileNameW(g_module, buf, MAX_PATH);
