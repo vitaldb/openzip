@@ -12,7 +12,7 @@
 
   <Identity Name="Hyung-ChulLee.OpenZip"
             Publisher="CN=F654AA56-4E26-4CE5-B9F5-949930D6F0EE"
-            Version="0.3.0.0"
+            Version="0.4.0.0"
             ProcessorArchitecture="x64" />
 
   <Properties>

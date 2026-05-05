@@ -184,7 +184,7 @@ BEGIN
 
     IDS_HELP_TITLE               "OpenZip"
     IDS_ERROR_TITLE              "OpenZip"
-    IDS_HELP_TEXT                "OpenZip 0.3.0 — usage:\n\n  openzip.exe [--extract] <archive> [options]\n  openzip.exe --compress --output <archive> [--mode bundle|each|prompt] --item <path>...\n\nSupported formats: .zip, .gz / .tar.gz / .tgz, .xz / .tar.xz / .txz (single-stream gzip and xz)\n\nExtract options:\n  --target <dir>   explicit output directory\n  --here           extract into the archive's parent directory\n  --folder         extract into a new subfolder named after the archive (default for .zip)\n  --password <pw>  pre-supply the password for encrypted archives\n  --threads <n>    override extraction parallelism (0 = auto, 1 = legacy serial)\n\nCompress options:\n  --output <path>  output archive path; .gz / .xz suffix produces a single-stream archive (one file only)\n  --mode           bundle (default), each, or prompt\n  --level          store, fast, normal (default), or max\n  --encoding       utf8 (default) or cp949\n  --item <path>    source file or folder (repeatable)"
+    IDS_HELP_TEXT                "OpenZip 0.4.0 — usage:\n\n  openzip.exe [--extract] <archive> [options]\n  openzip.exe --compress --output <archive> [--mode bundle|each|prompt] --item <path>...\n\nSupported formats: .zip, .gz / .tar.gz / .tgz, .xz / .tar.xz / .txz (single-stream gzip and xz)\n\nExtract options:\n  --target <dir>   explicit output directory\n  --here           extract into the archive's parent directory\n  --folder         extract into a new subfolder named after the archive (default for .zip)\n  --password <pw>  pre-supply the password for encrypted archives\n  --threads <n>    override extraction parallelism (0 = auto, 1 = legacy serial)\n\nCompress options:\n  --output <path>  output archive path; .gz / .xz suffix produces a single-stream archive (one file only)\n  --mode           bundle (default), each, or prompt\n  --level          store, fast, normal (default), or max\n  --encoding       utf8 (default) or cp949\n  --item <path>    source file or folder (repeatable)"
 
     IDS_DIALOG_COMPRESS_OPT_TITLE   "OpenZip — Compress Options"
     IDS_DIALOG_COMPRESS_TITLE       "OpenZip — Compress"
@@ -246,7 +246,7 @@ BEGIN
 
     IDS_HELP_TITLE               "OpenZip"
     IDS_ERROR_TITLE              "OpenZip"
-    IDS_HELP_TEXT                "OpenZip 0.3.0 — 사용법:\n\n  openzip.exe [--extract] <아카이브> [옵션]\n  openzip.exe --compress --output <아카이브> [--mode bundle|each|prompt] --item <path>...\n\n지원 형식: .zip, .gz / .tar.gz / .tgz, .xz / .tar.xz / .txz (gzip·xz 단일 스트림)\n\n압축 해제 옵션:\n  --target <dir>   출력 폴더 지정\n  --here           아카이브의 상위 폴더에 풀기\n  --folder         아카이브 이름의 새 폴더에 풀기 (.zip 기본값)\n  --password <pw>  암호화된 아카이브 비밀번호 사전 지정\n  --threads <n>    추출 병렬도 지정 (0 = 자동, 1 = 단일 스레드)\n\n압축 옵션:\n  --output <path>  출력 경로 (.gz / .xz 확장자는 단일 스트림 아카이브 생성)\n  --mode           bundle (기본), each, 또는 prompt\n  --level          store, fast, normal (기본), 또는 max\n  --encoding       utf8 (기본) 또는 cp949\n  --item <path>    원본 파일 또는 폴더 (반복 지정 가능)"
+    IDS_HELP_TEXT                "OpenZip 0.4.0 — 사용법:\n\n  openzip.exe [--extract] <아카이브> [옵션]\n  openzip.exe --compress --output <아카이브> [--mode bundle|each|prompt] --item <path>...\n\n지원 형식: .zip, .gz / .tar.gz / .tgz, .xz / .tar.xz / .txz (gzip·xz 단일 스트림)\n\n압축 해제 옵션:\n  --target <dir>   출력 폴더 지정\n  --here           아카이브의 상위 폴더에 풀기\n  --folder         아카이브 이름의 새 폴더에 풀기 (.zip 기본값)\n  --password <pw>  암호화된 아카이브 비밀번호 사전 지정\n  --threads <n>    추출 병렬도 지정 (0 = 자동, 1 = 단일 스레드)\n\n압축 옵션:\n  --output <path>  출력 경로 (.gz / .xz 확장자는 단일 스트림 아카이브 생성)\n  --mode           bundle (기본), each, 또는 prompt\n  --level          store, fast, normal (기본), 또는 max\n  --encoding       utf8 (기본) 또는 cp949\n  --item <path>    원본 파일 또는 폴더 (반복 지정 가능)"
 
     IDS_DIALOG_COMPRESS_OPT_TITLE   "OpenZip — 압축 옵션"
     IDS_DIALOG_COMPRESS_TITLE       "OpenZip — 압축"
@@ -284,8 +284,8 @@ END
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,2,0,0
- PRODUCTVERSION 0,2,0,0
+ FILEVERSION 0,4,0,0
+ PRODUCTVERSION 0,4,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -302,12 +302,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "VitalDB"
             VALUE "FileDescription", "OpenZip"
-            VALUE "FileVersion", "0.2.0.0"
+            VALUE "FileVersion", "0.4.0.0"
             VALUE "InternalName", "OpenZipApp"
             VALUE "LegalCopyright", "Copyright (c) 2026 Hyung-Chul Lee / VitalDB"
             VALUE "OriginalFilename", "openzip.exe"
             VALUE "ProductName", "OpenZip"
-            VALUE "ProductVersion", "0.2.0.0"
+            VALUE "ProductVersion", "0.4.0.0"
         END
     END
     BLOCK "VarFileInfo"
