@@ -56,6 +56,29 @@
           </uap:FileTypeAssociation>
         </uap:Extension>
 
+        <!-- File type association: gzip family (.gz / .tgz / .taz) -->
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="gzipfile">
+            <uap:SupportedFileTypes>
+              <uap:FileType>.gz</uap:FileType>
+              <uap:FileType>.tgz</uap:FileType>
+              <uap:FileType>.taz</uap:FileType>
+            </uap:SupportedFileTypes>
+            <uap:DisplayName>Gzip Archive</uap:DisplayName>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+
+        <!-- File type association: xz family (.xz / .txz) -->
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="xzfile">
+            <uap:SupportedFileTypes>
+              <uap:FileType>.xz</uap:FileType>
+              <uap:FileType>.txz</uap:FileType>
+            </uap:SupportedFileTypes>
+            <uap:DisplayName>XZ Archive</uap:DisplayName>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+
         <!-- COM server for shell extension -->
         <com:Extension Category="windows.comServer">
           <com:ComServer>
@@ -91,6 +114,29 @@
               <desktop5:Verb Id="OpenZipCompress"
                              Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00" />
             </desktop5:ItemType>
+            <!-- gzip family: extract verb only (gz is single-stream; recompress
+                 a single file via the generic "*" Compress binding below). -->
+            <desktop5:ItemType Type=".gz">
+              <desktop5:Verb Id="OpenZipExtract"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type=".tgz">
+              <desktop5:Verb Id="OpenZipExtract"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type=".taz">
+              <desktop5:Verb Id="OpenZipExtract"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+            </desktop5:ItemType>
+            <!-- xz family: extract verb only (single-stream). -->
+            <desktop5:ItemType Type=".xz">
+              <desktop5:Verb Id="OpenZipExtract"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type=".txz">
+              <desktop5:Verb Id="OpenZipExtract"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+            </desktop5:ItemType>
             <!-- Any file: compress -->
             <desktop5:ItemType Type="*">
               <desktop5:Verb Id="OpenZipCompress"
@@ -121,6 +167,16 @@
             <desktop9:ExtensionHandler Type="*"
                                        Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />
             <desktop9:ExtensionHandler Type=".zip"
+                                       Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />
+            <desktop9:ExtensionHandler Type=".gz"
+                                       Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />
+            <desktop9:ExtensionHandler Type=".tgz"
+                                       Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />
+            <desktop9:ExtensionHandler Type=".taz"
+                                       Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />
+            <desktop9:ExtensionHandler Type=".xz"
+                                       Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />
+            <desktop9:ExtensionHandler Type=".txz"
                                        Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />
             <desktop9:ExtensionHandler Type="Directory"
                                        Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F2000" />

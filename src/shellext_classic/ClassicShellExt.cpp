@@ -138,7 +138,15 @@ public:
             return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, 0);
         }
 
-        bool only_zip = (items_.size() == 1) && PathMatchSpecW(items_[0].c_str(), L"*.zip");
+        // Single archive selection — .zip or single-stream gzip/xz variants.
+        // (.tar.gz also matches .gz, .tar.xz matches .xz; no separate specs.)
+        bool single_archive = (items_.size() == 1) &&
+            (PathMatchSpecW(items_[0].c_str(), L"*.zip") ||
+             PathMatchSpecW(items_[0].c_str(), L"*.gz")  ||
+             PathMatchSpecW(items_[0].c_str(), L"*.tgz") ||
+             PathMatchSpecW(items_[0].c_str(), L"*.taz") ||
+             PathMatchSpecW(items_[0].c_str(), L"*.xz")  ||
+             PathMatchSpecW(items_[0].c_str(), L"*.txz"));
         UINT id = idCmdFirst;
 
         // Insert separator before OpenZip submenu.
@@ -147,26 +155,35 @@ public:
         // Submenu: OpenZip
         HMENU sub = ::CreatePopupMenu();
         UINT sub_idx = 0;
-        if (only_zip) {
+        if (single_archive) {
             ::InsertMenuW(sub, sub_idx++, MF_BYPOSITION,
                           id_extract_here_ = id++,
                           IsKoreanLocale() ? L"여기에 풀기" : L"Extract Here");
             std::wstring stem = fs::path(items_[0]).stem().wstring();
             std::wstring extract_to = IsKoreanLocale()
-                ? L"\"" + stem + L"\\\"에 풀기"
-                : L"Extract to \"" + stem + L"\\\"";
+                ? stem + L" 에 풀기"
+                : L"Extract to " + stem;
             ::InsertMenuW(sub, sub_idx++, MF_BYPOSITION,
                           id_extract_to_folder_ = id++, extract_to.c_str());
             ::InsertMenuW(sub, sub_idx++, MF_BYPOSITION | MF_SEPARATOR, 0, nullptr);
         }
 
         std::wstring base_name;
-        if (items_.size() == 1) base_name = fs::path(items_[0]).stem().wstring();
-        else base_name = fs::path(items_[0]).parent_path().filename().wstring();
+        if (items_.size() == 1) {
+            // Folders keep their whole name — `stem()` on "inspire 1.4.2"
+            // would chop ".2" treating it as an extension.
+            fs::path single(items_[0]);
+            std::error_code ec;
+            base_name = fs::is_directory(single, ec)
+                ? single.filename().wstring()
+                : single.stem().wstring();
+        } else {
+            base_name = fs::path(items_[0]).parent_path().filename().wstring();
+        }
         if (base_name.empty()) base_name = L"Archive";
         std::wstring t_bundle = IsKoreanLocale()
-            ? L"\"" + base_name + L".zip\"으로 압축"
-            : L"Compress to \"" + base_name + L".zip\"";
+            ? base_name + L".zip 으로 압축"
+            : L"Compress to " + base_name + L".zip";
 
         ::InsertMenuW(sub, sub_idx++, MF_BYPOSITION,
                       id_compress_bundle_ = id++, t_bundle.c_str());
@@ -211,9 +228,16 @@ public:
             cmdline = quoted_exe + L" --extract " + QuoteForCreateProcess(items_[0]) + L" --folder";
         } else if (cmd_id == id_compress_bundle_) {
             std::wstring parent = first_parent();
-            std::wstring base = items_.size() == 1
-                ? fs::path(items_[0]).stem().wstring()
-                : fs::path(parent).filename().wstring();
+            std::wstring base;
+            if (items_.size() == 1) {
+                fs::path single(items_[0]);
+                std::error_code ec;
+                base = fs::is_directory(single, ec)
+                    ? single.filename().wstring()
+                    : single.stem().wstring();
+            } else {
+                base = fs::path(parent).filename().wstring();
+            }
             std::wstring out_path = parent + L"\\" + base + L".zip";
             cmdline = quoted_exe + L" --compress --mode bundle --output "
                     + QuoteForCreateProcess(out_path);

@@ -70,14 +70,18 @@
     <ClInclude Include="compressor.h" />
     <ClInclude Include="extractor.h" />
     <ClInclude Include="filename_decoder.h" />
+    <ClInclude Include="gzip_archive.h" />
     <ClInclude Include="path_validator.h" />
     <ClInclude Include="secure_string.h" />
+    <ClInclude Include="xz_archive.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="compressor.cpp" />
     <ClCompile Include="extractor.cpp" />
     <ClCompile Include="filename_decoder.cpp" />
+    <ClCompile Include="gzip_archive.cpp" />
     <ClCompile Include="path_validator.cpp" />
+    <ClCompile Include="xz_archive.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

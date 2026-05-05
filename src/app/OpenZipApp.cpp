@@ -5,6 +5,7 @@
 #include "CommandLine.h"
 #include "CompressDialog.h"
 #include "CompressOptionsDialog.h"
+#include "DropTargetDialog.h"
 #include "ExtractDialog.h"
 #include "SingleInstance.h"
 #include "resource.h"
@@ -24,11 +25,56 @@ void ShowHelp() {
     AfxMessageBox(text, MB_OK | MB_ICONINFORMATION);
 }
 
+// Forward declaration so the drop-target handler can re-enter the regular
+// extract flow with a synthetic command line per dropped file.
+void ProcessOne(const std::wstring& raw_cmdline);
+
+// Build a `--extract <path>` command line for a single archive. Used when the
+// drop-target dialog hands us paths — re-using ParseCommandLine keeps target
+// resolution (Mode::Default → Here for .gz/.xz, Folder otherwise) consistent
+// with file-association double-click.
+std::wstring BuildExtractCmdline(const std::filesystem::path& archive) {
+    std::wstring path = archive.wstring();
+    // Quote the path so embedded spaces survive CommandLineToArgvW.
+    std::wstring quoted;
+    quoted.reserve(path.size() + 2);
+    quoted.push_back(L'"');
+    for (wchar_t c : path) {
+        if (c == L'"') quoted.push_back(L'\\');
+        quoted.push_back(c);
+    }
+    quoted.push_back(L'"');
+    // argv[0] is required; ParseCommandLine skips it. Use the real exe path
+    // to keep semantics aligned with normal launches.
+    wchar_t exe[MAX_PATH] = L"OpenZipApp.exe";
+    ::GetModuleFileNameW(nullptr, exe, MAX_PATH);
+    std::wstring out;
+    out.reserve(static_cast<size_t>(::wcslen(exe)) + quoted.size() + 4);
+    out.push_back(L'"'); out += exe; out.push_back(L'"');
+    out.push_back(L' '); out += quoted;
+    return out;
+}
+
 void ProcessOne(const std::wstring& raw_cmdline) {
     auto cl = openzip::ParseCommandLine(raw_cmdline.c_str());
 
     if (cl.show_help) {
         ShowHelp();
+        return;
+    }
+    if (cl.show_drop_target) {
+        // Idle GUI launch — no archive specified. Show an empty drop window;
+        // when the user drops files, re-enter ProcessOne for each so the
+        // regular browser/extract flow handles them. The drop loop runs
+        // until the user closes the window without dropping (IDCANCEL).
+        for (;;) {
+            CDropTargetDialog drop;
+            INT_PTR rc = drop.DoModal();
+            if (rc != IDOK || drop.dropped_paths.empty()) break;
+            for (const auto& p : drop.dropped_paths) {
+                ProcessOne(BuildExtractCmdline(p));
+            }
+        }
         return;
     }
     if (!cl.valid) {
@@ -83,9 +129,13 @@ void ProcessOne(const std::wstring& raw_cmdline) {
 
         } else if (cl.compress_mode == openzip::CompressMode::Each) {
             // Compress each item separately into a same-name .zip beside it.
+            // Folders keep their full name; only files have an extension to drop.
             for (size_t i = 0; i < cl.compress_items.size(); ++i) {
                 const auto& src = cl.compress_items[i];
-                fs::path out = src.parent_path() / (src.stem().wstring() + L".zip");
+                std::wstring base = fs::is_directory(src)
+                    ? src.filename().wstring()
+                    : src.stem().wstring();
+                fs::path out = src.parent_path() / (base + L".zip");
 
                 CCompressDialog cd;
                 cd.sources      = {src};

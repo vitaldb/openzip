@@ -2,10 +2,13 @@
 
 #include <Windows.h>
 
+#include <algorithm>
 #include <ctime>
 #include <vector>
 
+#include "gzip_archive.h"
 #include "secure_string.h"
+#include "xz_archive.h"
 
 #include <mz.h>
 #include <mz_strm.h>
@@ -138,6 +141,24 @@ Compressor::Result Compressor::Compress(const std::vector<fs::path>& sources,
                                         const fs::path& output_zip,
                                         ProgressCallback& cb,
                                         const Options& opts) {
+    // Format dispatch by output extension. Single-stream containers (gzip,
+    // xz) accept exactly one regular-file source; folder/multi-file inputs
+    // need a multi-entry container and surface IoError.
+    if (gzip::LooksLikeGz(output_zip)) {
+        if (sources.size() != 1) {
+            cb.OnComplete(Result::IoError);
+            return Result::IoError;
+        }
+        return gzip::Compress(sources.front(), output_zip, cb, opts);
+    }
+    if (xz::LooksLikeXz(output_zip)) {
+        if (sources.size() != 1) {
+            cb.OnComplete(Result::IoError);
+            return Result::IoError;
+        }
+        return xz::Compress(sources.front(), output_zip, cb, opts);
+    }
+
     // --- Task 1.8: Output-exists conflict resolution (before opening writer) ---
     fs::path effective_output = output_zip;
     if (fs::exists(output_zip)) {

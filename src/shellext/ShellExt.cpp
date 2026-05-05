@@ -132,6 +132,19 @@ bool EndsWithIgnoreCase(const std::wstring& s, const wchar_t* suffix) {
                                   suffix, static_cast<int>(n), TRUE) == CSTR_EQUAL;
 }
 
+// True for any extension OpenZip can extract via the same code path:
+// .zip plus the single-stream families (gzip: .gz / .tgz / .taz; xz:
+// .xz / .txz). Used to gate the extract verb visibility and to suppress
+// the compress verb when the user already picked an archive.
+bool IsExtractableArchive(const std::wstring& path) {
+    return EndsWithIgnoreCase(path, L".zip") ||
+           EndsWithIgnoreCase(path, L".gz")  ||  // covers .tar.gz too
+           EndsWithIgnoreCase(path, L".tgz") ||
+           EndsWithIgnoreCase(path, L".taz") ||
+           EndsWithIgnoreCase(path, L".xz")  ||  // covers .tar.xz too
+           EndsWithIgnoreCase(path, L".txz");
+}
+
 // Strip directory and extension from a zip path → "foo".
 std::wstring StemOf(const std::wstring& zip_path) {
     size_t slash = zip_path.find_last_of(L"\\/");
@@ -149,15 +162,15 @@ bool IsKoreanLocale() {
     return PRIMARYLANGID(mui) == LANG_KOREAN || PRIMARYLANGID(loc) == LANG_KOREAN;
 }
 
-// Localized menu title for the "Extract to <name>\" verb.
+// Localized menu title for the "Extract to <name>" verb.
 std::wstring TitleExtractTo(const std::wstring& zip_path) {
     std::wstring name = StemOf(zip_path);
     if (IsKoreanLocale()) {
         return name.empty() ? std::wstring(L"폴더에 풀기")
-                            : L"\"" + name + L"\\\"에 풀기";
+                            : name + L" 에 풀기";
     }
-    return name.empty() ? std::wstring(L"Extract to folder\\")
-                        : L"Extract to \"" + name + L"\\\"";
+    return name.empty() ? std::wstring(L"Extract to folder")
+                        : L"Extract to " + name;
 }
 
 const wchar_t* TitleExtractHere() {
@@ -189,9 +202,15 @@ std::wstring TitleCompressBundle(IShellItemArray* items) {
             if (SUCCEEDED(it->GetDisplayName(SIGDN_FILESYSPATH, &p)) && p) {
                 std::wstring full(p);
                 ::CoTaskMemFree(p);
-                // Use filename() for directories (stem of "C:/foo/" is empty).
+                // Folders keep their full name — `stem()` would chop off
+                // anything after the last dot (e.g. "inspire 1.4.2" → "inspire
+                // 1.4"), which is wrong because a folder name has no
+                // "extension". Files use stem() to drop the real extension.
                 std::filesystem::path fsp(full);
-                base_name = fsp.stem().wstring();
+                std::error_code ec;
+                bool is_dir = std::filesystem::is_directory(fsp, ec);
+                base_name = is_dir ? fsp.filename().wstring()
+                                   : fsp.stem().wstring();
                 if (base_name.empty()) base_name = fsp.filename().wstring();
             }
             it->Release();
@@ -208,8 +227,8 @@ std::wstring TitleCompressBundle(IShellItemArray* items) {
         }
     }
     if (base_name.empty()) base_name = L"Archive";
-    if (IsKoreanLocale()) return L"\"" + base_name + L".zip\"으로 압축";
-    return L"Compress to \"" + base_name + L".zip\"";
+    if (IsKoreanLocale()) return base_name + L".zip 으로 압축";
+    return L"Compress to " + base_name + L".zip";
 }
 
 HRESULT CopyToTaskMem(const wchar_t* src, LPWSTR* out) {
@@ -312,11 +331,19 @@ void LaunchAppCompress(const std::vector<std::wstring>& paths, CmdKind kind) {
 
     std::wstring cmdline = QuoteForCreateProcess(exe) + L" --compress";
     if (kind == CmdKind::CompressBundle) {
-        std::wstring parent = std::filesystem::path(paths[0]).parent_path().wstring();
-        std::wstring base   = (paths.size() == 1)
-            ? std::filesystem::path(paths[0]).stem().wstring()
-            : std::filesystem::path(parent).filename().wstring();
-        if (base.empty()) base = std::filesystem::path(paths[0]).filename().wstring();
+        std::filesystem::path first(paths[0]);
+        std::wstring parent = first.parent_path().wstring();
+        std::wstring base;
+        if (paths.size() == 1) {
+            // Folders keep the whole filename; only real files get stem().
+            std::error_code ec;
+            base = std::filesystem::is_directory(first, ec)
+                ? first.filename().wstring()
+                : first.stem().wstring();
+        } else {
+            base = std::filesystem::path(parent).filename().wstring();
+        }
+        if (base.empty()) base = first.filename().wstring();
         if (base.empty()) base = L"Archive";
         std::wstring out_path = parent + L"\\" + base + L".zip";
         cmdline += L" --mode bundle --output " + QuoteForCreateProcess(out_path);
@@ -414,11 +441,11 @@ public:
             if (FAILED(items->GetCount(&count)) || count == 0) {
                 *state = ECS_HIDDEN; return S_OK;
             }
-            // Hide if exactly one .zip selected — extract verb already covers it.
+            // Hide if exactly one extractable archive selected — extract verb covers it.
             if (count == 1) {
                 std::wstring path = FirstSelectedPath(items);
                 Log(L"GetState (compress) path=%s", path.c_str());
-                if (EndsWithIgnoreCase(path, L".zip")) { *state = ECS_HIDDEN; return S_OK; }
+                if (IsExtractableArchive(path)) { *state = ECS_HIDDEN; return S_OK; }
             }
             *state = ECS_ENABLED;
             return S_OK;
@@ -434,7 +461,7 @@ public:
         }
         std::wstring path = FirstSelectedPath(items);
         Log(L"GetState path=%s", path.c_str());
-        if (!EndsWithIgnoreCase(path, L".zip")) {
+        if (!IsExtractableArchive(path)) {
             *state = ECS_HIDDEN;
         }
         return S_OK;
