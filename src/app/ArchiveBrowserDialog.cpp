@@ -1,18 +1,29 @@
 #include "stdafx.h"
 #include "ArchiveBrowserDialog.h"
+#include "CommandLine.h"
+#include "ExtractDialog.h"
 #include "flat_button.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <CommCtrl.h>
+#include <cstring>
 #include <ctime>
+#include <functional>
 #include <map>
+#include <ole2.h>
+#include <oleidl.h>
 #include <set>
 #include <shellapi.h>
 #include <shlobj_core.h>
+#include <shlwapi.h>
+#include <system_error>
 
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "shlwapi.lib")
 
 namespace {
 
@@ -91,6 +102,219 @@ std::wstring NormalizePath(std::wstring s) {
     return s;
 }
 
+// ─── Temp-preview directory ──────────────────────────────────────────
+//
+// Both "double-click → open with default handler" and "drag-out to Explorer"
+// extract on demand into a private subfolder under %TEMP%/openzip-preview/.
+// We can't delete the files at the moment they're consumed (the launched
+// app or the drop target keeps them open for an unknown amount of time),
+// so cleanup runs lazily at dialog launch — anything older than 24 hours
+// gets removed.
+constexpr wchar_t kPreviewRootName[] = L"openzip-preview";
+
+std::filesystem::path PreviewRoot() {
+    wchar_t buf[MAX_PATH];
+    DWORD n = ::GetTempPathW(MAX_PATH, buf);
+    if (n == 0 || n >= MAX_PATH) return {};
+    return std::filesystem::path(buf) / kPreviewRootName;
+}
+
+std::filesystem::path MakeFreshPreviewDir() {
+    auto root = PreviewRoot();
+    if (root.empty()) return {};
+    std::error_code ec;
+    std::filesystem::create_directories(root, ec);
+    // Random 8-hex suffix is enough collision protection; the parent is
+    // per-user and the folder lifetime is bounded by CleanupOldPreviewDirs.
+    GUID g{};
+    if (FAILED(::CoCreateGuid(&g))) return {};
+    wchar_t suffix[32];
+    ::swprintf_s(suffix, L"%08lX-%04hX", g.Data1, g.Data2);
+    auto dir = root / suffix;
+    std::filesystem::create_directories(dir, ec);
+    if (ec) return {};
+    return dir;
+}
+
+// ─── Drag-source COM objects ─────────────────────────────────────────
+//
+// These two classes are the minimal surface area required by DoDragDrop:
+//
+//   * CHDropDataObject — exposes a single CF_HDROP / TYMED_HGLOBAL format,
+//     handing the drop target a list of absolute file paths via the standard
+//     DROPFILES blob. Drop targets that understand CF_HDROP (Explorer,
+//     practically every Windows app) treat this exactly like a drag from
+//     File Explorer.
+//
+//   * CDropSource — feedback / cancellation glue. Cancel on Esc, drop on
+//     left-button release, default cursors otherwise. No fancy effect logic
+//     — DROPEFFECT_COPY is the only operation we offer.
+
+HGLOBAL BuildHDropGlobal(const std::vector<std::wstring>& paths) {
+    if (paths.empty()) return nullptr;
+    size_t chars = 1;  // trailing extra NUL terminating the double-NUL list
+    for (const auto& p : paths) chars += p.size() + 1;
+    SIZE_T bytes = sizeof(DROPFILES) + chars * sizeof(wchar_t);
+    HGLOBAL h = ::GlobalAlloc(GHND, bytes);
+    if (!h) return nullptr;
+    auto* df = static_cast<DROPFILES*>(::GlobalLock(h));
+    if (!df) { ::GlobalFree(h); return nullptr; }
+    df->pFiles = sizeof(DROPFILES);
+    df->fWide  = TRUE;
+    auto* p = reinterpret_cast<wchar_t*>(reinterpret_cast<BYTE*>(df) + sizeof(DROPFILES));
+    for (const auto& s : paths) {
+        std::memcpy(p, s.c_str(), (s.size() + 1) * sizeof(wchar_t));
+        p += s.size() + 1;
+    }
+    *p = L'\0';  // double-NUL terminator
+    ::GlobalUnlock(h);
+    return h;
+}
+
+// CHDropDataObject — lazy CF_HDROP source.
+//
+// The straightforward implementation extracts before DoDragDrop and hands a
+// pre-built CF_HDROP to the data object. That means the user feels a stall
+// at drag-start while extraction runs, AND password-protected archives can't
+// participate in drag-out (a modal password prompt mid-gesture would steal
+// the mouse capture and break the drag).
+//
+// Lazy variant: at drag-start we only remember the *intent* — which entry
+// names to extract, where the temp directory will live, and a callback that
+// performs the extraction with full UI (CExtractDialog: password prompt,
+// conflict prompt, progress bar). The callback runs on the FIRST GetData
+// call, which by Win32 conventions only happens at drop time (drop targets
+// use QueryGetData / EnumFormatEtc during the drag loop and only call
+// GetData(CF_HDROP) once the user releases the mouse over a willing
+// target). By that point the drag gesture has ended and we're back in a
+// regular UI message pump, so a modal password dialog is safe.
+//
+// Subsequent GetData calls reuse the cached HDROP so a target that calls
+// twice (rare, but happens) doesn't kick off a second extraction.
+class CHDropDataObject : public IDataObject {
+public:
+    // ExtractFn returns the absolute paths to be advertised in CF_HDROP, or
+    // false if extraction failed / was cancelled (drag aborts cleanly).
+    using ExtractFn = std::function<bool(std::vector<std::wstring>*)>;
+
+    explicit CHDropDataObject(ExtractFn fn) : extract_(std::move(fn)) {}
+    ~CHDropDataObject() { if (hdrop_) ::GlobalFree(hdrop_); }
+    CHDropDataObject(const CHDropDataObject&) = delete;
+    CHDropDataObject& operator=(const CHDropDataObject&) = delete;
+
+    // IUnknown
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** ppv) override {
+        if (!ppv) return E_POINTER;
+        if (iid == IID_IUnknown || iid == IID_IDataObject) {
+            *ppv = static_cast<IDataObject*>(this);
+            AddRef();
+            return S_OK;
+        }
+        *ppv = nullptr;
+        return E_NOINTERFACE;
+    }
+    ULONG STDMETHODCALLTYPE AddRef()  override { return ::InterlockedIncrement(&ref_); }
+    ULONG STDMETHODCALLTYPE Release() override {
+        LONG r = ::InterlockedDecrement(&ref_);
+        if (r == 0) delete this;
+        return static_cast<ULONG>(r);
+    }
+
+    // IDataObject — only CF_HDROP / TYMED_HGLOBAL is offered.
+    HRESULT STDMETHODCALLTYPE GetData(FORMATETC* fe, STGMEDIUM* m) override {
+        if (!fe || !m) return E_POINTER;
+        if (fe->cfFormat != CF_HDROP || !(fe->tymed & TYMED_HGLOBAL))
+            return DV_E_FORMATETC;
+
+        if (state_ == State::kInitial) {
+            std::vector<std::wstring> paths;
+            bool ok = extract_ && extract_(&paths);
+            if (ok) hdrop_ = BuildHDropGlobal(paths);
+            state_ = (ok && hdrop_) ? State::kReady : State::kFailed;
+        }
+        if (state_ != State::kReady || !hdrop_) return E_FAIL;
+
+        // Hand the target its own copy — once GetData returns, the medium
+        // belongs to the caller (it'll call ReleaseStgMedium).
+        SIZE_T sz = ::GlobalSize(hdrop_);
+        HGLOBAL clone = ::GlobalAlloc(GHND, sz);
+        if (!clone) return E_OUTOFMEMORY;
+        void* src = ::GlobalLock(hdrop_);
+        void* dst = ::GlobalLock(clone);
+        if (src && dst) std::memcpy(dst, src, sz);
+        if (dst) ::GlobalUnlock(clone);
+        if (src) ::GlobalUnlock(hdrop_);
+        m->tymed          = TYMED_HGLOBAL;
+        m->hGlobal        = clone;
+        m->pUnkForRelease = nullptr;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE GetDataHere(FORMATETC*, STGMEDIUM*) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE QueryGetData(FORMATETC* fe) override {
+        if (!fe) return E_POINTER;
+        if (fe->cfFormat == CF_HDROP && (fe->tymed & TYMED_HGLOBAL)) return S_OK;
+        return DV_E_FORMATETC;
+    }
+    HRESULT STDMETHODCALLTYPE GetCanonicalFormatEtc(FORMATETC*, FORMATETC* out) override {
+        if (out) out->ptd = nullptr;
+        return E_NOTIMPL;
+    }
+    HRESULT STDMETHODCALLTYPE SetData(FORMATETC*, STGMEDIUM*, BOOL) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE EnumFormatEtc(DWORD dir, IEnumFORMATETC** ppe) override {
+        if (!ppe) return E_POINTER;
+        if (dir != DATADIR_GET) return E_NOTIMPL;
+        FORMATETC fe{};
+        fe.cfFormat = CF_HDROP;
+        fe.dwAspect = DVASPECT_CONTENT;
+        fe.lindex   = -1;
+        fe.tymed    = TYMED_HGLOBAL;
+        return ::SHCreateStdEnumFmtEtc(1, &fe, ppe);
+    }
+    HRESULT STDMETHODCALLTYPE DAdvise(FORMATETC*, DWORD, IAdviseSink*, DWORD*) override {
+        return OLE_E_ADVISENOTSUPPORTED;
+    }
+    HRESULT STDMETHODCALLTYPE DUnadvise(DWORD) override { return OLE_E_ADVISENOTSUPPORTED; }
+    HRESULT STDMETHODCALLTYPE EnumDAdvise(IEnumSTATDATA**) override { return OLE_E_ADVISENOTSUPPORTED; }
+
+private:
+    enum class State { kInitial, kReady, kFailed };
+    LONG      ref_   = 1;
+    State     state_ = State::kInitial;
+    ExtractFn extract_;
+    HGLOBAL   hdrop_ = nullptr;
+};
+
+class CDropSource : public IDropSource {
+public:
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** ppv) override {
+        if (!ppv) return E_POINTER;
+        if (iid == IID_IUnknown || iid == IID_IDropSource) {
+            *ppv = static_cast<IDropSource*>(this);
+            AddRef();
+            return S_OK;
+        }
+        *ppv = nullptr;
+        return E_NOINTERFACE;
+    }
+    ULONG STDMETHODCALLTYPE AddRef()  override { return ::InterlockedIncrement(&ref_); }
+    ULONG STDMETHODCALLTYPE Release() override {
+        LONG r = ::InterlockedDecrement(&ref_);
+        if (r == 0) delete this;
+        return static_cast<ULONG>(r);
+    }
+    HRESULT STDMETHODCALLTYPE QueryContinueDrag(BOOL escape, DWORD keys) override {
+        if (escape)              return DRAGDROP_S_CANCEL;
+        if (!(keys & MK_LBUTTON)) return DRAGDROP_S_DROP;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE GiveFeedback(DWORD) override {
+        return DRAGDROP_S_USEDEFAULTCURSORS;
+    }
+
+private:
+    LONG ref_ = 1;
+};
+
 }  // anonymous namespace
 
 IMPLEMENT_DYNAMIC(CArchiveBrowserDialog, CDialogEx)
@@ -110,6 +334,7 @@ BEGIN_MESSAGE_MAP(CArchiveBrowserDialog, CDialogEx)
     ON_NOTIFY(NM_CUSTOMDRAW,    IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListCustomDraw)
     ON_NOTIFY(NM_RCLICK,        IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListRClick)
     ON_NOTIFY(LVN_COLUMNCLICK,  IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListColumnClick)
+    ON_NOTIFY(LVN_BEGINDRAG,    IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListBeginDrag)
 END_MESSAGE_MAP()
 
 void CArchiveBrowserDialog::DoDataExchange(CDataExchange* pDX) {
@@ -210,6 +435,17 @@ BOOL CArchiveBrowserDialog::OnInitDialog() {
         openzip::dark_theme::SubclassHeader(lv_hdr);
         ::InvalidateRect(lv_hdr, nullptr, TRUE);
     }
+
+    // OLE drag-source needs an STA. AfxOleInit() is the canonical MFC entry
+    // point — calling it more than once is harmless (it short-circuits on
+    // already-initialized threads). DoDragDrop in OnListBeginDrag depends
+    // on this.
+    ::AfxOleInit();
+
+    // Preview-temp housekeeping. Sweeping at dialog launch is good enough —
+    // the user must open a browser before they can produce new preview files,
+    // so this naturally bounds the on-disk footprint.
+    CleanupOldPreviewDirs();
 
     entries_ = openzip::Extractor::ListEntries(zip_path);
     expanded_folders_.clear();
@@ -716,13 +952,23 @@ void CArchiveBrowserDialog::OnListDoubleClick(NMHDR* hdr, LRESULT* result) {
         ToggleFolderAt(nia->iItem);
         return;
     }
-    std::wstring dest;
-    if (!PickDestinationFolder(dest)) return;
+
+    // File row: extract just this entry into a private temp directory and
+    // hand it to the shell's default handler. This matches what users expect
+    // from a Windows archive browser — Explorer's built-in zip browser, 7-Zip
+    // File Manager, Bandizip, etc. all behave the same way.
     std::vector<std::wstring> filter;
     ExpandRowToEntryNames(r.full_path, /*row_is_dir=*/false, filter);
-    chosen_extract_dir  = dest;
-    chosen_filter_names = std::move(filter);
-    EndDialog(IDOK);
+    auto temp_dir = ExtractEntriesToTempModal(filter);
+    if (temp_dir.empty()) return;  // user cancelled / extract failed
+
+    // The extractor preserves the entry's relative path inside target_dir,
+    // so the actual file is at temp_dir / r.full_path. Use ShellExecuteW
+    // with no verb (= default action — usually "open"). SW_SHOWNORMAL lets
+    // image viewers / editors take focus.
+    auto file_path = temp_dir / std::filesystem::path(r.full_path);
+    ::ShellExecuteW(GetSafeHwnd(), nullptr, file_path.c_str(),
+                    nullptr, nullptr, SW_SHOWNORMAL);
 }
 
 void CArchiveBrowserDialog::OnListRClick(NMHDR* hdr, LRESULT* result) {
@@ -784,6 +1030,117 @@ void CArchiveBrowserDialog::OnListColumnClick(NMHDR* hdr, LRESULT* result) {
     RebuildVisibleRows();
     RenderRows();
     UpdateSortIndicator();
+}
+
+// ─── Temp extraction + drag-out plumbing ─────────────────────────────
+
+void CArchiveBrowserDialog::CleanupOldPreviewDirs() {
+    auto root = PreviewRoot();
+    if (root.empty()) return;
+    std::error_code ec;
+    if (!std::filesystem::exists(root, ec)) return;
+
+    using clock = std::filesystem::file_time_type::clock;
+    auto cutoff = clock::now() - std::chrono::hours(24);
+
+    for (const auto& entry : std::filesystem::directory_iterator(root, ec)) {
+        if (ec) break;
+        std::error_code item_ec;
+        auto last_write = std::filesystem::last_write_time(entry, item_ec);
+        if (item_ec) continue;
+        if (last_write > cutoff) continue;
+        // Best-effort: an in-use preview dir (file the user is still viewing)
+        // will fail to delete and we'll retry next launch — that's fine.
+        std::filesystem::remove_all(entry.path(), item_ec);
+    }
+}
+
+std::filesystem::path CArchiveBrowserDialog::ExtractEntriesToTempModal(
+        const std::vector<std::wstring>& entry_names) {
+    if (entry_names.empty()) return {};
+    auto dir = MakeFreshPreviewDir();
+    if (dir.empty()) return {};
+
+    // Re-use the existing extract dialog so the user gets progress, password,
+    // and conflict handling for free. CommandLine's threads / password fields
+    // start empty, which is what we want — a fresh prompt if needed.
+    openzip::CommandLine cmd;
+    cmd.kind       = openzip::JobKind::Extract;
+    cmd.zip_path   = zip_path;
+    cmd.target_dir = dir;
+
+    CExtractDialog extract(cmd, this);
+    extract.include_filter = entry_names;
+    INT_PTR rc = extract.DoModal();
+    if (rc != IDOK ||
+        extract.result() != openzip::Extractor::Result::Success) {
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+        return {};
+    }
+    return dir;
+}
+
+void CArchiveBrowserDialog::OnListBeginDrag(NMHDR* hdr, LRESULT* result) {
+    auto* nlv = reinterpret_cast<NMLISTVIEW*>(hdr);
+    *result = 0;
+    if (!nlv) return;
+
+    // Build the entry-name filter from the current selection. If the user
+    // started the drag on an unselected row, the listview ensures `iItem`
+    // is selected before LVN_BEGINDRAG fires — we follow the live selection
+    // state (consistent with right-click behavior elsewhere in this dialog).
+    std::vector<std::wstring> filter;
+    std::vector<std::wstring> top_relpaths;  // for the CF_HDROP file list
+    int sel = list_.GetNextItem(-1, LVNI_SELECTED);
+    while (sel >= 0) {
+        if (sel < static_cast<int>(visible_rows_.size())) {
+            const Row& r = visible_rows_[sel];
+            ExpandRowToEntryNames(r.full_path, r.is_dir, filter);
+            // The CF_HDROP roots — one absolute path per *selected* row,
+            // pointing to its top-level extracted file or folder. Drop
+            // targets see "drag of N items" rather than "drag of every leaf".
+            top_relpaths.push_back(r.full_path);
+        }
+        sel = list_.GetNextItem(sel, LVNI_SELECTED);
+    }
+    if (filter.empty()) return;
+    // De-dup in case the user selected both a folder and one of its children.
+    std::set<std::wstring> uniq(filter.begin(), filter.end());
+    filter.assign(uniq.begin(), uniq.end());
+
+    // Capture state by value so the callback survives even after this stack
+    // frame returns. `this` is captured raw — its lifetime spans DoDragDrop,
+    // and the data object is Released before we return below.
+    auto extract_cb = [this, filter = std::move(filter),
+                       top_relpaths = std::move(top_relpaths)]
+                      (std::vector<std::wstring>* out_paths) -> bool {
+        // Runs on the FIRST GetData(CF_HDROP) — i.e. when the user has
+        // dropped on a willing target. CExtractDialog handles password
+        // prompts, conflict prompts (won't fire on a fresh temp dir, but
+        // safe to keep), and shows progress for large extractions.
+        auto dir = ExtractEntriesToTempModal(filter);
+        if (dir.empty()) return false;
+        out_paths->reserve(top_relpaths.size());
+        for (const auto& rel : top_relpaths) {
+            out_paths->push_back(
+                (dir / std::filesystem::path(rel)).wstring());
+        }
+        return true;
+    };
+
+    auto* data = new CHDropDataObject(std::move(extract_cb));
+    auto* src  = new CDropSource();
+
+    DWORD effect = 0;
+    HRESULT hr = ::DoDragDrop(data, src, DROPEFFECT_COPY, &effect);
+    (void)hr;
+    data->Release();
+    src->Release();
+    // The temp directory created by the lazy callback is NOT removed here —
+    // Explorer and other targets read the source files asynchronously after
+    // GetData returns. Cleanup happens at the next dialog launch via
+    // CleanupOldPreviewDirs (24h window), which is plenty of time.
 }
 
 void CArchiveBrowserDialog::UpdateSortIndicator() {

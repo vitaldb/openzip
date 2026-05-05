@@ -43,6 +43,7 @@ protected:
     afx_msg void   OnListCustomDraw(NMHDR* hdr, LRESULT* result);
     afx_msg void   OnListRClick(NMHDR* hdr, LRESULT* result);
     afx_msg void   OnListColumnClick(NMHDR* hdr, LRESULT* result);
+    afx_msg void   OnListBeginDrag(NMHDR* hdr, LRESULT* result);
     afx_msg void   OnSize(UINT nType, int cx, int cy);
     afx_msg void   OnGetMinMaxInfo(MINMAXINFO* mmi);
     afx_msg void   OnPaint();
@@ -77,6 +78,22 @@ private:
     void ExpandRowToEntryNames(const std::wstring& row_full_path,
                                bool row_is_dir,
                                std::vector<std::wstring>& out_set) const;
+
+    // Extract `entry_names` (already expanded) to a fresh subdirectory under
+    // %TEMP%/openzip-preview/, using a modal CExtractDialog so the user sees
+    // progress and is prompted for passwords / conflicts. Returns the temp
+    // directory on success, empty path on cancel/failure.
+    //
+    // Used by both double-click "open" and the lazy CF_HDROP drag-out
+    // callback — the latter invokes this from inside IDataObject::GetData
+    // (which fires only at drop time, so a modal dialog is safe there).
+    std::filesystem::path ExtractEntriesToTempModal(
+            const std::vector<std::wstring>& entry_names);
+
+    // Sweep stale preview folders (older than 24h) under %TEMP%/openzip-preview/.
+    // Best-effort; failures are silently ignored — Windows will reuse the
+    // space when needed.
+    void CleanupOldPreviewDirs();
 
     std::vector<openzip::Extractor::Entry> entries_;
     std::set<std::wstring>                 expanded_folders_;
