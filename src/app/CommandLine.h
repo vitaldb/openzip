@@ -45,6 +45,7 @@ struct CommandLine {
 
     bool show_help    = false;
     bool show_browser = false;  // true when invoked with bare zip path (file-association double-click)
+    bool show_drop_target = false;  // true when launched with no arguments at all (idle GUI launch)
     bool valid        = true;
     std::wstring error;
 

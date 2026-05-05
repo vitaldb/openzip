@@ -3,6 +3,9 @@
 #include <Windows.h>
 #include <shellapi.h>
 
+#include <algorithm>
+#include <cwctype>
+
 namespace fs = std::filesystem;
 
 namespace openzip {
@@ -11,13 +14,35 @@ namespace {
 
 enum class Mode { Default, Here, Folder };
 
+// Case-insensitive single-stream archive check. Pulled inline rather than
+// taking a dependency on the core lib so command-line parsing stays cheap.
+bool IsSingleStreamArchive(const fs::path& p) {
+    std::wstring fn = p.filename().wstring();
+    std::transform(fn.begin(), fn.end(), fn.begin(),
+                   [](wchar_t c) { return static_cast<wchar_t>(::towlower(c)); });
+    auto ends = [&](const wchar_t* sfx) {
+        size_t n = ::wcslen(sfx);
+        return fn.size() >= n &&
+               std::equal(sfx, sfx + n, fn.end() - n);
+    };
+    return ends(L".gz") || ends(L".tgz") || ends(L".taz") ||
+           ends(L".xz") || ends(L".txz");
+}
+
 // Resolve target dir from explicit --target or zip + mode.
+//
+// For single-stream archives (.gz/.xz/etc.), "Default" semantics flip to
+// Here: these formats produce exactly one output file, so creating a
+// same-named folder and dropping that one file inside it would just nest
+// "foo.txt" inside a "foo.txt/" directory. Users who explicitly pass
+// --folder still get folder mode, awkward as it is.
 fs::path ResolveTarget(const fs::path& zip, const fs::path& explicit_target, Mode mode) {
     if (!explicit_target.empty()) return fs::absolute(explicit_target);
     fs::path parent = zip.parent_path();
     if (parent.empty()) parent = fs::current_path();
     if (mode == Mode::Here) return parent;
-    return parent / zip.stem();  // Folder or Default
+    if (mode == Mode::Default && IsSingleStreamArchive(zip)) return parent;
+    return parent / zip.stem();  // Folder, or Default for non-gz
 }
 
 }  // namespace
@@ -35,6 +60,15 @@ CommandLine ParseCommandLine(const wchar_t* cmdline) {
     fs::path explicit_target;
     Mode mode = Mode::Default;
     bool any_extract_flag_seen = false;  // true if --extract/--here/--folder/--target was seen
+
+    // argv[0] is the exe path; with nothing after it the user launched the
+    // GUI directly (Start menu, taskbar, double-click on the .exe). We show
+    // the drag-and-drop target window in that case instead of erroring.
+    if (argc <= 1) {
+        c.show_drop_target = true;
+        ::LocalFree(argv);
+        return c;
+    }
 
     // argv[0] is the exe path; skip it.
     for (int i = 1; i < argc; ++i) {

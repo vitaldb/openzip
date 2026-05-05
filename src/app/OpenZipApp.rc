@@ -32,7 +32,7 @@ FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
     LTEXT           "", IDC_BROWSE_ZIPPATH, 16, 14, 728, 12, SS_NOPREFIX | SS_PATHELLIPSIS
     CONTROL         "", IDC_BROWSE_LIST, "SysListView32",
-                    LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER | WS_TABSTOP,
+                    LVS_REPORT | LVS_SHOWSELALWAYS | WS_TABSTOP,
                     16, 32, 728, 336
     DEFPUSHBUTTON   "Extract All", IDC_BROWSE_EXTRACT_ALL, 604, 378, 70, 16
     PUSHBUTTON      "Close",       IDCANCEL,               684, 378, 60, 16
@@ -126,6 +126,16 @@ BEGIN
     PUSHBUTTON      "Cancel", IDCANCEL, 228, 88, 60, 16
 END
 
+IDD_DROP_TARGET DIALOGEX 0, 0, 320, 160
+STYLE DS_SETFONT | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX
+EXSTYLE WS_EX_ACCEPTFILES
+CAPTION "OpenZip"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "", IDC_DROP_HINT, 16, 64, 288, 32,
+                    SS_CENTER | SS_NOPREFIX
+END
+
 IDD_CONFLICT DIALOGEX 0, 0, 360, 124
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_DLGMODALFRAME
@@ -174,7 +184,7 @@ BEGIN
 
     IDS_HELP_TITLE               "OpenZip"
     IDS_ERROR_TITLE              "OpenZip"
-    IDS_HELP_TEXT                "OpenZip 0.3.0 — usage:\n\n  openzip.exe [--extract] <zip-path> [options]\n  openzip.exe --compress --output <zip> [--mode bundle|each|prompt] --item <path>...\n\nExtract options:\n  --target <dir>   explicit output directory\n  --here           extract into the zip's parent directory\n  --folder         extract into a new subfolder named after the zip (default)\n  --password <pw>  pre-supply the password for encrypted archives\n  --threads <n>    override extraction parallelism (0 = auto, 1 = legacy serial)\n\nCompress options:\n  --output <zip>   output zip path (required for bundle mode)\n  --mode           bundle (default), each, or prompt\n  --level          store, fast, normal (default), or max\n  --encoding       utf8 (default) or cp949\n  --item <path>    source file or folder (repeatable)"
+    IDS_HELP_TEXT                "OpenZip 0.3.0 — usage:\n\n  openzip.exe [--extract] <archive> [options]\n  openzip.exe --compress --output <archive> [--mode bundle|each|prompt] --item <path>...\n\nSupported formats: .zip, .gz / .tar.gz / .tgz, .xz / .tar.xz / .txz (single-stream gzip and xz)\n\nExtract options:\n  --target <dir>   explicit output directory\n  --here           extract into the archive's parent directory\n  --folder         extract into a new subfolder named after the archive (default for .zip)\n  --password <pw>  pre-supply the password for encrypted archives\n  --threads <n>    override extraction parallelism (0 = auto, 1 = legacy serial)\n\nCompress options:\n  --output <path>  output archive path; .gz / .xz suffix produces a single-stream archive (one file only)\n  --mode           bundle (default), each, or prompt\n  --level          store, fast, normal (default), or max\n  --encoding       utf8 (default) or cp949\n  --item <path>    source file or folder (repeatable)"
 
     IDS_DIALOG_COMPRESS_OPT_TITLE   "OpenZip — Compress Options"
     IDS_DIALOG_COMPRESS_TITLE       "OpenZip — Compress"
@@ -192,7 +202,7 @@ BEGIN
 
     IDS_DIALOG_BROWSE_TITLE         "OpenZip — Archive Contents"
     IDS_LABEL_BROWSE_NAME           "Name"
-    IDS_LABEL_BROWSE_SIZE           "Size"
+    IDS_LABEL_BROWSE_SIZE           "Original Size"
     IDS_LABEL_BROWSE_PACKED         "Packed"
     IDS_LABEL_BROWSE_MODIFIED       "Modified"
     IDS_LABEL_BROWSE_CREATED        "Created"
@@ -200,6 +210,9 @@ BEGIN
     IDS_BUTTON_EXTRACT_SELECTED     "Extract"
     IDS_BUTTON_CLOSE                "Close"
     IDS_PICK_DESTINATION            "Choose destination folder"
+
+    IDS_DROP_TARGET_TITLE           "OpenZip"
+    IDS_DROP_TARGET_HINT            "Drop archive files here\n(.zip / .gz / .tar.gz / .xz / .tar.xz)"
 END
 
 /////////////////////////////////////////////////////////////////////////////
@@ -233,7 +246,7 @@ BEGIN
 
     IDS_HELP_TITLE               "OpenZip"
     IDS_ERROR_TITLE              "OpenZip"
-    IDS_HELP_TEXT                "OpenZip 0.3.0 — 사용법:\n\n  openzip.exe [--extract] <zip-path> [옵션]\n  openzip.exe --compress --output <zip> [--mode bundle|each|prompt] --item <path>...\n\n압축 해제 옵션:\n  --target <dir>   출력 폴더 지정\n  --here           zip 파일의 상위 폴더에 풀기\n  --folder         zip 파일 이름의 새 폴더에 풀기 (기본값)\n  --password <pw>  암호화된 아카이브 비밀번호 사전 지정\n  --threads <n>    추출 병렬도 지정 (0 = 자동, 1 = 단일 스레드)\n\n압축 옵션:\n  --output <zip>   출력 zip 경로 (bundle 모드 필수)\n  --mode           bundle (기본), each, 또는 prompt\n  --level          store, fast, normal (기본), 또는 max\n  --encoding       utf8 (기본) 또는 cp949\n  --item <path>    원본 파일 또는 폴더 (반복 지정 가능)"
+    IDS_HELP_TEXT                "OpenZip 0.3.0 — 사용법:\n\n  openzip.exe [--extract] <아카이브> [옵션]\n  openzip.exe --compress --output <아카이브> [--mode bundle|each|prompt] --item <path>...\n\n지원 형식: .zip, .gz / .tar.gz / .tgz, .xz / .tar.xz / .txz (gzip·xz 단일 스트림)\n\n압축 해제 옵션:\n  --target <dir>   출력 폴더 지정\n  --here           아카이브의 상위 폴더에 풀기\n  --folder         아카이브 이름의 새 폴더에 풀기 (.zip 기본값)\n  --password <pw>  암호화된 아카이브 비밀번호 사전 지정\n  --threads <n>    추출 병렬도 지정 (0 = 자동, 1 = 단일 스레드)\n\n압축 옵션:\n  --output <path>  출력 경로 (.gz / .xz 확장자는 단일 스트림 아카이브 생성)\n  --mode           bundle (기본), each, 또는 prompt\n  --level          store, fast, normal (기본), 또는 max\n  --encoding       utf8 (기본) 또는 cp949\n  --item <path>    원본 파일 또는 폴더 (반복 지정 가능)"
 
     IDS_DIALOG_COMPRESS_OPT_TITLE   "OpenZip — 압축 옵션"
     IDS_DIALOG_COMPRESS_TITLE       "OpenZip — 압축"
@@ -251,7 +264,7 @@ BEGIN
 
     IDS_DIALOG_BROWSE_TITLE         "OpenZip — 압축 파일 내용"
     IDS_LABEL_BROWSE_NAME           "이름"
-    IDS_LABEL_BROWSE_SIZE           "크기"
+    IDS_LABEL_BROWSE_SIZE           "원본 크기"
     IDS_LABEL_BROWSE_PACKED         "압축 후"
     IDS_LABEL_BROWSE_MODIFIED       "수정한 날짜"
     IDS_LABEL_BROWSE_CREATED        "생성한 날짜"
@@ -259,6 +272,9 @@ BEGIN
     IDS_BUTTON_EXTRACT_SELECTED     "압축 풀기"
     IDS_BUTTON_CLOSE                "닫기"
     IDS_PICK_DESTINATION            "압축을 풀 폴더 선택"
+
+    IDS_DROP_TARGET_TITLE           "OpenZip"
+    IDS_DROP_TARGET_HINT            "여기에 압축 파일을 끌어다 놓으세요\n(.zip / .gz / .tar.gz / .xz / .tar.xz)"
 END
 
 /////////////////////////////////////////////////////////////////////////////

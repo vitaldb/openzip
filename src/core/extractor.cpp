@@ -13,8 +13,10 @@
 #include <thread>
 #include <vector>
 
+#include "gzip_archive.h"
 #include "path_validator.h"
 #include "secure_string.h"
+#include "xz_archive.h"
 
 // minizip-ng (vcpkg port: minizip-ng).
 #include <mz.h>
@@ -592,6 +594,15 @@ const char* ResultName(Extractor::Result r) {
 }
 
 std::vector<Extractor::Entry> Extractor::ListEntries(const fs::path& zip_path) {
+    // Format dispatch — single-stream archives (gzip, xz) have no central
+    // directory and go through dedicated listers.
+    if (gzip::LooksLikeGz(zip_path) || gzip::HasGzMagic(zip_path)) {
+        return gzip::ListEntries(zip_path);
+    }
+    if (xz::LooksLikeXz(zip_path) || xz::HasXzMagic(zip_path)) {
+        return xz::ListEntries(zip_path);
+    }
+
     std::vector<Entry> out;
     ZipReaderHandle reader;
     if (!reader) return out;
@@ -613,6 +624,26 @@ Extractor::Result Extractor::Extract(const fs::path& zip_path,
                                      ProgressCallback& cb,
                                      const Options& opts) {
     auto finish = [&](Result r) -> Result { cb.OnComplete(r); return r; };
+
+    // Format dispatch. Single-stream extractors run the full callback
+    // contract themselves, so we hand off cb and return their result.
+    auto include_matches = [&](const std::vector<Entry>& entries) {
+        if (opts.include.empty()) return true;
+        for (const auto& e : entries) {
+            for (const auto& want : opts.include) {
+                if (e.name == want) return true;
+            }
+        }
+        return false;
+    };
+    if (gzip::LooksLikeGz(zip_path) || gzip::HasGzMagic(zip_path)) {
+        if (!include_matches(gzip::ListEntries(zip_path))) return finish(Result::Success);
+        return gzip::Extract(zip_path, target_dir, cb);
+    }
+    if (xz::LooksLikeXz(zip_path) || xz::HasXzMagic(zip_path)) {
+        if (!include_matches(xz::ListEntries(zip_path))) return finish(Result::Success);
+        return xz::Extract(zip_path, target_dir, cb);
+    }
 
     if (!fs::exists(zip_path)) return finish(Result::IoError);
     if (!fs::exists(target_dir)) {

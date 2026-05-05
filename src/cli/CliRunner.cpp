@@ -319,7 +319,12 @@ int RunCompress(const CommandLine& cl) {
         int rc = 0;
         for (size_t i = 0; i < cl.compress_items.size(); ++i) {
             const auto& src = cl.compress_items[i];
-            fs::path out = src.parent_path() / (src.stem().wstring() + L".zip");
+            // Folders keep the whole filename — `stem()` would chop off
+            // anything past the last dot (e.g. "inspire 1.4.2" → "inspire 1.4").
+            std::wstring base = fs::is_directory(src)
+                ? src.filename().wstring()
+                : src.stem().wstring();
+            fs::path out = src.parent_path() / (base + L".zip");
             wchar_t hdr[64];
             ::swprintf_s(hdr, L"\n--- [%zu/%zu] ", i + 1, cl.compress_items.size());
             Out(hdr); Outln(out.wstring());

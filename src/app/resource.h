@@ -117,3 +117,11 @@
 #define IDS_LABEL_BROWSE_PACKED         4088
 #define IDS_LABEL_BROWSE_MODIFIED       4089
 #define IDS_LABEL_BROWSE_CREATED        4090
+
+// Drop-target dialog — shown when OpenZipApp.exe is launched with no
+// arguments (e.g. directly from Start menu / a desktop shortcut). Accepts
+// drag-drop of archive files; each dropped file opens the regular browser.
+#define IDD_DROP_TARGET                 143
+#define IDC_DROP_HINT                   2060
+#define IDS_DROP_TARGET_TITLE           4100
+#define IDS_DROP_TARGET_HINT            4101
