@@ -42,11 +42,14 @@ protected:
     afx_msg void   OnListItemChanged(NMHDR* hdr, LRESULT* result);
     afx_msg void   OnListCustomDraw(NMHDR* hdr, LRESULT* result);
     afx_msg void   OnListRClick(NMHDR* hdr, LRESULT* result);
+    afx_msg void   OnListColumnClick(NMHDR* hdr, LRESULT* result);
     afx_msg void   OnSize(UINT nType, int cx, int cy);
     afx_msg void   OnGetMinMaxInfo(MINMAXINFO* mmi);
+    afx_msg void   OnPaint();
     DECLARE_MESSAGE_MAP()
 
     void RelayoutChildren(int cx, int cy);
+    void UpdateSortIndicator();
 
 private:
     // ── Tree model ──────────────────────────────────────────────────
@@ -82,4 +85,12 @@ private:
     HIMAGELIST                             sys_images_ = nullptr;  // not owned; do not free
     int                                    icon_w_ = 16;
     int                                    icon_h_ = 16;
+
+    // Sort state. Column index matches InsertColumn order:
+    //   0 = Name, 1 = Size, 2 = Packed, 3 = Modified, 4 = Created.
+    // The hierarchical DFS order + folders-before-files-at-each-level
+    // invariants are always preserved; the column choice only changes
+    // the within-type sibling order at each tree level.
+    int  sort_column_     = 0;
+    bool sort_descending_ = false;
 };

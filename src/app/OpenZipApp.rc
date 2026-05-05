@@ -192,7 +192,7 @@ BEGIN
 
     IDS_DIALOG_BROWSE_TITLE         "OpenZip — Archive Contents"
     IDS_LABEL_BROWSE_NAME           "Name"
-    IDS_LABEL_BROWSE_SIZE           "Size"
+    IDS_LABEL_BROWSE_SIZE           "Original Size"
     IDS_LABEL_BROWSE_PACKED         "Packed"
     IDS_LABEL_BROWSE_MODIFIED       "Modified"
     IDS_LABEL_BROWSE_CREATED        "Created"
@@ -251,7 +251,7 @@ BEGIN
 
     IDS_DIALOG_BROWSE_TITLE         "OpenZip — 압축 파일 내용"
     IDS_LABEL_BROWSE_NAME           "이름"
-    IDS_LABEL_BROWSE_SIZE           "크기"
+    IDS_LABEL_BROWSE_SIZE           "원본 크기"
     IDS_LABEL_BROWSE_PACKED         "압축 후"
     IDS_LABEL_BROWSE_MODIFIED       "수정한 날짜"
     IDS_LABEL_BROWSE_CREATED        "생성한 날짜"

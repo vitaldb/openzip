@@ -25,6 +25,27 @@ constexpr int kArrowWidth     = 16;
 constexpr int kIconWidth      = 18;
 constexpr int kLabelGap       = 4;
 
+// ─── Listview palette ─────────────────────────────────────────────────
+// Owner-drawn in BOTH modes for visual consistency with flat_button —
+// the rendering path doesn't change when light/dark is toggled, only
+// the color choices below.
+//
+// Dark tier: dialog 32 → list body 38 → header 43 (subtle elevation).
+// Light tier: dialog 240 (sys 3DFACE) → list body 255 (white) → header 247.
+constexpr COLORREF kListBodyDark      = RGB(38, 38, 38);
+constexpr COLORREF kListFgDark        = RGB(220, 220, 220);
+constexpr COLORREF kListSelFocBgDark  = RGB(38, 79, 120);
+constexpr COLORREF kListSelFocFgDark  = RGB(255, 255, 255);
+constexpr COLORREF kListSelUnfBgDark  = RGB(60, 60, 60);
+constexpr COLORREF kListSelUnfFgDark  = RGB(220, 220, 220);
+
+constexpr COLORREF kListBodyLight     = RGB(255, 255, 255);
+constexpr COLORREF kListFgLight       = RGB(28, 28, 28);
+constexpr COLORREF kListSelFocBgLight = RGB(0, 120, 212);   // Win11 accent
+constexpr COLORREF kListSelFocFgLight = RGB(255, 255, 255);
+constexpr COLORREF kListSelUnfBgLight = RGB(225, 225, 225);
+constexpr COLORREF kListSelUnfFgLight = RGB(28, 28, 28);
+
 // ─── Format helpers ──────────────────────────────────────────────────
 
 // 1024-base human readable. "0 B" for empty so column doesn't look broken.
@@ -82,11 +103,13 @@ BEGIN_MESSAGE_MAP(CArchiveBrowserDialog, CDialogEx)
     ON_WM_CTLCOLOR()
     ON_WM_SIZE()
     ON_WM_GETMINMAXINFO()
-    ON_NOTIFY(NM_CLICK,        IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListClick)
-    ON_NOTIFY(NM_DBLCLK,       IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListDoubleClick)
-    ON_NOTIFY(LVN_ITEMCHANGED, IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListItemChanged)
-    ON_NOTIFY(NM_CUSTOMDRAW,   IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListCustomDraw)
-    ON_NOTIFY(NM_RCLICK,       IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListRClick)
+    ON_WM_PAINT()
+    ON_NOTIFY(NM_CLICK,         IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListClick)
+    ON_NOTIFY(NM_DBLCLK,        IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListDoubleClick)
+    ON_NOTIFY(LVN_ITEMCHANGED,  IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListItemChanged)
+    ON_NOTIFY(NM_CUSTOMDRAW,    IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListCustomDraw)
+    ON_NOTIFY(NM_RCLICK,        IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListRClick)
+    ON_NOTIFY(LVN_COLUMNCLICK,  IDC_BROWSE_LIST, &CArchiveBrowserDialog::OnListColumnClick)
 END_MESSAGE_MAP()
 
 void CArchiveBrowserDialog::DoDataExchange(CDataExchange* pDX) {
@@ -111,6 +134,44 @@ BOOL CArchiveBrowserDialog::OnInitDialog() {
     SetDlgItemText(IDC_BROWSE_ZIPPATH, zip_path.wstring().c_str());
 
     list_.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
+
+    // Match Win11 Explorer's borderless file-list pane:
+    //   * strip WS_EX_CLIENTEDGE / WS_EX_STATICEDGE (3D etched outline).
+    //   * strip WS_BORDER (even the 1-px outline reads as a sunken inset
+    //     under dark-mode theming, where the inner client is themed but the
+    //     non-client frame is drawn by the OS in a default sys color).
+    // The dark_theme module already calls SetWindowTheme(L"DarkMode_Explorer")
+    // on this listview during EnableForWindow, which gives us modern
+    // selection/hover rendering and the matching header look — re-themeing
+    // the header here ourselves regressed text contrast on the column
+    // headers, so we leave that to dark_theme's pass.
+    if (HWND lh = list_.GetSafeHwnd()) {
+        LONG_PTR ex = ::GetWindowLongPtr(lh, GWL_EXSTYLE);
+        ex &= ~(WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
+        ::SetWindowLongPtr(lh, GWL_EXSTYLE, ex);
+
+        LONG_PTR st = ::GetWindowLongPtr(lh, GWL_STYLE);
+        st &= ~WS_BORDER;
+        ::SetWindowLongPtr(lh, GWL_STYLE, st);
+
+        ::SetWindowPos(lh, nullptr, 0, 0, 0, 0,
+                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                       SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
+        // Set the listview's nominal palette in BOTH modes. These are
+        // necessary but not sufficient on Win11 — DarkMode_Explorer +
+        // LVS_EX_DOUBLEBUFFER routes painting through a buffered code path
+        // that ignores LVM_SETBKCOLOR for the row strip and empty body
+        // area. The actual fill comes from CDDS_PREPAINT (full client) and
+        // per-row clrTextBk in CDDS_ITEMPREPAINT (default-drawn subitems);
+        // these calls just give the control a sane fallback bg color for
+        // any code path that *does* honor SetBkColor (in-place rename
+        // edit overlay, etc).
+        const bool dark = openzip::dark_theme::IsDarkModeActive();
+        list_.SetBkColor(dark ? kListBodyDark : kListBodyLight);
+        list_.SetTextBkColor(dark ? kListBodyDark : kListBodyLight);
+        list_.SetTextColor(dark ? kListFgDark : kListFgLight);
+    }
 
     // Cache the system small-icon image list so we can ImageList_Draw from
     // custom-draw. The handle is owned by the shell — never free it.
@@ -137,11 +198,25 @@ BOOL CArchiveBrowserDialog::OnInitDialog() {
     list_.InsertColumn(3, modified, LVCFMT_LEFT,  140);
     list_.InsertColumn(4, created,  LVCFMT_LEFT,  140);
 
+    // Subclass the column header for owner-drawing in BOTH light and dark
+    // modes. Done AFTER InsertColumn so the header is fully populated
+    // before our paint runs (if attached earlier the system theme can
+    // sometimes prepaint the header before our subclass installs, and
+    // because the listview's first WM_PAINT may have already shipped to
+    // its window cache, we'd see a flash of the system header look first).
+    // EnableForWindow may have already subclassed in dark mode, but
+    // SubclassHeader is idempotent — it short-circuits on second call.
+    if (HWND lv_hdr = ListView_GetHeader(list_.GetSafeHwnd())) {
+        openzip::dark_theme::SubclassHeader(lv_hdr);
+        ::InvalidateRect(lv_hdr, nullptr, TRUE);
+    }
+
     entries_ = openzip::Extractor::ListEntries(zip_path);
     expanded_folders_.clear();
 
     RebuildVisibleRows();
     RenderRows();
+    UpdateSortIndicator();
     return TRUE;
 }
 
@@ -239,41 +314,92 @@ void CArchiveBrowserDialog::RebuildVisibleRows() {
         items.push_back({key, true, nullptr, &agg});
     }
 
-    // Sort key: per-segment type marker + segment name, concatenated.
-    //   "src/app/main.cpp" (file) →  \1 src  \1 app  \2 main.cpp
-    //   "src"               (dir)  →  \1 src
-    //   "src/app"           (dir)  →  \1 src  \1 app
-    //   "README.md"         (file) →  \2 README.md
+    // Hierarchical sort that walks both items' paths in parallel,
+    // comparing one segment at a time. At each level:
+    //   1. Folders before files (always — independent of asc/desc).
+    //   2. Same type → compare by the chosen column.
+    //   3. Equal at this level → descend into the next segment, OR if one
+    //      side has no more segments, that side is the ancestor (DFS-first).
     //
-    // The marker (\1 dir, \2 file) goes BEFORE each segment so:
-    //   * same-parent siblings interleave correctly (parent prefix matches)
-    //   * folders sort before files at every level (\1 < \2)
-    //   * a folder's own row sorts before its descendants (parent key is a
-    //     strict prefix of any descendant key, so it sorts first)
-    // → produces a strict DFS pre-order: parent, then all its children,
-    //   then the next sibling.
-    auto sort_key = [](const Item& it) {
-        std::wstring k;
-        k.reserve(it.key.size() + 8);
-        size_t pos = 0;
-        for (;;) {
-            size_t sl = it.key.find(L'/', pos);
-            bool last = (sl == std::wstring::npos);
-            // For non-last segments we're walking through ancestor directories;
-            // for the last segment, the type comes from the item itself.
-            wchar_t marker = (!last || it.is_dir) ? L'\x01' : L'\x02';
-            k += marker;
-            k += it.key.substr(pos, last ? std::wstring::npos : sl - pos);
-            if (last) break;
-            pos = sl + 1;
+    // The column value for an *ancestor* segment is the folder aggregate
+    // (sum of descendant sizes / latest of descendant timestamps), looked
+    // up from the `folders` map built earlier. For the *last* segment of
+    // a file row, the value is the entry's own size/time. This keeps
+    // sibling folders comparable to sibling files at the same level when
+    // sorting by Size or Date.
+    //
+    // sort_descending_ inverts ONLY the sibling order at the level where
+    // the first non-equal comparison happens — the parent-before-child
+    // relationship (DFS order) and folders-before-files invariant are not
+    // affected by the direction toggle.
+    auto seg_value = [&](const Item& it, size_t pos, size_t end_pos,
+                         bool is_folder_at_level) -> uint64_t {
+        if (sort_column_ == 0) return 0;  // name sort uses the segment string
+        if (is_folder_at_level) {
+            std::wstring path = it.key.substr(0, end_pos) + L'/';
+            auto fit = folders.find(path);
+            if (fit == folders.end()) return 0;
+            const FolderAgg& agg = fit->second;
+            switch (sort_column_) {
+                case 1: return agg.uncompressed_total;
+                case 2: return agg.compressed_total;
+                case 3: return static_cast<uint64_t>(agg.latest_mtime);
+                case 4: return static_cast<uint64_t>(agg.latest_ctime);
+            }
+        } else if (it.entry) {
+            switch (sort_column_) {
+                case 1: return it.entry->uncompressed_size;
+                case 2: return it.entry->compressed_size;
+                case 3: return static_cast<uint64_t>(it.entry->modified_time);
+                case 4: return static_cast<uint64_t>(it.entry->created_time);
+            }
         }
-        return k;
+        return 0;
+        (void)pos;
     };
+
     std::sort(items.begin(), items.end(), [&](const Item& a, const Item& b) {
-        std::wstring ka = sort_key(a);
-        std::wstring kb = sort_key(b);
-        return ::CompareStringOrdinal(ka.c_str(), -1, kb.c_str(), -1, TRUE)
-               == CSTR_LESS_THAN;
+        size_t pos_a = 0, pos_b = 0;
+        for (;;) {
+            size_t sl_a = a.key.find(L'/', pos_a);
+            size_t sl_b = b.key.find(L'/', pos_b);
+            bool last_a = (sl_a == std::wstring::npos);
+            bool last_b = (sl_b == std::wstring::npos);
+            std::wstring seg_a = a.key.substr(pos_a, last_a ? std::wstring::npos : sl_a - pos_a);
+            std::wstring seg_b = b.key.substr(pos_b, last_b ? std::wstring::npos : sl_b - pos_b);
+
+            bool a_folder = !last_a || a.is_dir;
+            bool b_folder = !last_b || b.is_dir;
+            if (a_folder != b_folder) return a_folder;  // folders first, both directions
+
+            int cmp = CSTR_EQUAL;
+            if (sort_column_ == 0) {
+                cmp = ::CompareStringOrdinal(seg_a.c_str(), -1,
+                                             seg_b.c_str(), -1, TRUE);
+            } else {
+                size_t end_a = last_a ? a.key.size() : sl_a;
+                size_t end_b = last_b ? b.key.size() : sl_b;
+                uint64_t va = seg_value(a, pos_a, end_a, a_folder);
+                uint64_t vb = seg_value(b, pos_b, end_b, b_folder);
+                if      (va < vb) cmp = CSTR_LESS_THAN;
+                else if (va > vb) cmp = CSTR_GREATER_THAN;
+                else cmp = ::CompareStringOrdinal(seg_a.c_str(), -1,
+                                                  seg_b.c_str(), -1, TRUE);
+            }
+
+            if (cmp != CSTR_EQUAL) {
+                return sort_descending_ ? (cmp == CSTR_GREATER_THAN)
+                                        : (cmp == CSTR_LESS_THAN);
+            }
+
+            // Equal segment at this level — DFS: the side that ends here
+            // is the ancestor and sorts first regardless of direction.
+            if (last_a && last_b) return false;
+            if (last_a) return true;
+            if (last_b) return false;
+            pos_a = sl_a + 1;
+            pos_b = sl_b + 1;
+        }
     });
 
     visible_rows_.reserve(items.size());
@@ -344,14 +470,57 @@ void CArchiveBrowserDialog::RenderRows() {
 void CArchiveBrowserDialog::OnListCustomDraw(NMHDR* hdr, LRESULT* result) {
     auto* nmcd = reinterpret_cast<LPNMLVCUSTOMDRAW>(hdr);
     *result = CDRF_DODEFAULT;
+    const bool dark = openzip::dark_theme::IsDarkModeActive();
+
+    // Owner-draw palette per mode — same code path runs in both, only the
+    // colors differ. This keeps dark/light visually consistent with
+    // flat_button's bimodal paint on the action buttons.
+    const COLORREF body_bg     = dark ? kListBodyDark      : kListBodyLight;
+    const COLORREF body_fg     = dark ? kListFgDark        : kListFgLight;
+    const COLORREF sel_foc_bg  = dark ? kListSelFocBgDark  : kListSelFocBgLight;
+    const COLORREF sel_foc_fg  = dark ? kListSelFocFgDark  : kListSelFocFgLight;
+    const COLORREF sel_unf_bg  = dark ? kListSelUnfBgDark  : kListSelUnfBgLight;
+    const COLORREF sel_unf_fg  = dark ? kListSelUnfFgDark  : kListSelUnfFgLight;
 
     switch (nmcd->nmcd.dwDrawStage) {
-        case CDDS_PREPAINT:
+        case CDDS_PREPAINT: {
+            // Paint the listview's body backdrop ourselves in both modes.
+            // ListView_SetBkColor *should* do this, but on Win11 with
+            // DarkMode_Explorer + LVS_EX_DOUBLEBUFFER the buffered-paint
+            // code path inside the common-control DLL uses theme colors
+            // and ignores LVM_SETBKCOLOR for the row strip. Filling here
+            // happens inside the same buffered DC the items will be drawn
+            // into, so it covers both the gaps between rows and the
+            // empty space below the last row before any item paints over.
+            RECT rc;
+            ::GetClientRect(list_.GetSafeHwnd(), &rc);
+            HBRUSH br = ::CreateSolidBrush(body_bg);
+            ::FillRect(nmcd->nmcd.hdc, &rc, br);
+            ::DeleteObject(br);
             *result = CDRF_NOTIFYITEMDRAW;
             return;
-        case CDDS_ITEMPREPAINT:
-            *result = CDRF_NOTIFYSUBITEMDRAW;
+        }
+        case CDDS_ITEMPREPAINT: {
+            // Per-row clrText / clrTextBk override the theme palette in
+            // the listview's built-in subitem-draw path; without this the
+            // default-drawn columns 1..4 pick up the theme's window color
+            // (system white in dark mode, system white in light mode also,
+            // but with our explicit palette the selection colors stay
+            // consistent across modes).
+            int row = static_cast<int>(nmcd->nmcd.dwItemSpec);
+            UINT lvis = list_.GetItemState(row, LVIS_SELECTED);
+            bool selected = (lvis & LVIS_SELECTED) != 0;
+            bool focused  = (::GetFocus() == list_.GetSafeHwnd());
+            if (selected) {
+                nmcd->clrText   = focused ? sel_foc_fg : sel_unf_fg;
+                nmcd->clrTextBk = focused ? sel_foc_bg : sel_unf_bg;
+            } else {
+                nmcd->clrText   = body_fg;
+                nmcd->clrTextBk = body_bg;
+            }
+            *result = CDRF_NEWFONT | CDRF_NOTIFYSUBITEMDRAW;
             return;
+        }
         case CDDS_ITEMPREPAINT | CDDS_SUBITEM: {
             if (nmcd->iSubItem != 0) return;  // default for other columns
 
@@ -375,13 +544,17 @@ void CArchiveBrowserDialog::OnListCustomDraw(NMHDR* hdr, LRESULT* result) {
             UINT lvis = list_.GetItemState(row, LVIS_SELECTED);
             bool selected = (lvis & LVIS_SELECTED) != 0;
             bool focused  = (::GetFocus() == list_.GetSafeHwnd());
+            // Use the same palette variables computed at the top of the
+            // function so column 0 stays in sync with the default-drawn
+            // columns 1..4 (clrText/clrTextBk in CDDS_ITEMPREPAINT) AND
+            // with the body fill in CDDS_PREPAINT, in both modes.
             COLORREF bg, fg;
             if (selected) {
-                bg = ::GetSysColor(focused ? COLOR_HIGHLIGHT : COLOR_BTNFACE);
-                fg = ::GetSysColor(focused ? COLOR_HIGHLIGHTTEXT : COLOR_WINDOWTEXT);
+                if (focused) { bg = sel_foc_bg; fg = sel_foc_fg; }
+                else         { bg = sel_unf_bg; fg = sel_unf_fg; }
             } else {
-                bg = ::GetSysColor(COLOR_WINDOW);
-                fg = ::GetSysColor(COLOR_WINDOWTEXT);
+                bg = body_bg;
+                fg = body_fg;
             }
 
             HBRUSH bgBrush = ::CreateSolidBrush(bg);
@@ -593,6 +766,47 @@ void CArchiveBrowserDialog::OnListItemChanged(NMHDR* hdr, LRESULT* result) {
     if (was != now) UpdateButtonLabel();
 }
 
+void CArchiveBrowserDialog::OnListColumnClick(NMHDR* hdr, LRESULT* result) {
+    auto* nlv = reinterpret_cast<NMLISTVIEW*>(hdr);
+    *result = 0;
+    if (!nlv) return;
+    int col = nlv->iSubItem;
+    if (col < 0 || col > 4) return;
+
+    // Same column → toggle direction; new column → start ascending.
+    if (col == sort_column_) {
+        sort_descending_ = !sort_descending_;
+    } else {
+        sort_column_     = col;
+        sort_descending_ = false;
+    }
+
+    RebuildVisibleRows();
+    RenderRows();
+    UpdateSortIndicator();
+}
+
+void CArchiveBrowserDialog::UpdateSortIndicator() {
+    HWND hdr = ListView_GetHeader(list_.GetSafeHwnd());
+    if (!hdr) return;
+    int count = static_cast<int>(::SendMessageW(hdr, HDM_GETITEMCOUNT, 0, 0));
+    for (int i = 0; i < count; ++i) {
+        HDITEMW hdi{};
+        hdi.mask = HDI_FORMAT;
+        if (!::SendMessageW(hdr, HDM_GETITEMW, i,
+                            reinterpret_cast<LPARAM>(&hdi))) continue;
+        hdi.fmt &= ~(HDF_SORTUP | HDF_SORTDOWN);
+        if (i == sort_column_) {
+            hdi.fmt |= sort_descending_ ? HDF_SORTDOWN : HDF_SORTUP;
+        }
+        ::SendMessageW(hdr, HDM_SETITEMW, i,
+                       reinterpret_cast<LPARAM>(&hdi));
+    }
+    // Force the dark-mode header subclass to repaint with the new flags;
+    // HDM_SETITEMW alone doesn't always invalidate when only fmt changes.
+    ::InvalidateRect(hdr, nullptr, TRUE);
+}
+
 // ─── Resize handling ─────────────────────────────────────────────────
 
 void CArchiveBrowserDialog::OnSize(UINT nType, int cx, int cy) {
@@ -621,26 +835,104 @@ void CArchiveBrowserDialog::RelayoutChildren(int cx, int cy) {
     constexpr int btn_w_close  = 80;
     constexpr int btn_gap      = 6;
 
-    // Path label — top, full width minus margins.
-    if (auto* w = GetDlgItem(IDC_BROWSE_ZIPPATH)) {
-        w->MoveWindow(margin, margin, cx - 2 * margin, top_label_h);
-    }
-
-    // Buttons — bottom-right, fixed size.
     int btn_y    = cy - margin - btn_h;
     int close_x  = cx - margin - btn_w_close;
     int extract_x = close_x - btn_gap - btn_w_extract;
-    if (auto* w = GetDlgItem(IDCANCEL))
-        w->MoveWindow(close_x, btn_y, btn_w_close, btn_h);
-    if (auto* w = GetDlgItem(IDC_BROWSE_EXTRACT_ALL))
-        w->MoveWindow(extract_x, btn_y, btn_w_extract, btn_h);
-
-    // List view — middle band, fills the rest.
     int list_top    = margin + top_label_h + top_gap;
     int list_bottom = btn_y - bottom_gap;
     int list_h      = list_bottom - list_top;
     if (list_h < 60) list_h = 60;
-    list_.MoveWindow(margin, list_top, cx - 2 * margin, list_h);
+
+    // Move all children atomically with SWP_NOCOPYBITS.
+    //
+    // The earlier MoveWindow-per-child approach left a faint stale-pixel
+    // trail along the Extract button's right edge during a continuous
+    // shrink-drag: when the dialog narrowed faster than btn_gap (6 px) per
+    // WM_SIZE, the close button's NEW bounds momentarily overlapped the
+    // Extract button's OLD bounds, and Windows' bit-blit optimization
+    // pulled those old Extract pixels into the close button surface before
+    // the Extract button itself moved. RDW_FRAME | RDW_UPDATENOW couldn't
+    // fix it — the artifact was already laid down by the bit-blit before
+    // any WM_PAINT ran.
+    //
+    // BeginDeferWindowPos batches the moves so they apply as a single
+    // operation; SWP_NOCOPYBITS forces full invalidation of each child's
+    // new bounds instead of bit-blitting from the old position, which is
+    // what eliminates the ghost. The synchronous RedrawWindow on the two
+    // buttons afterwards still pushes the flat-button paint through before
+    // the next WM_SIZE arrives during a continuous drag, so the user sees
+    // a clean frame each step.
+    HDWP hdwp = ::BeginDeferWindowPos(4);
+    constexpr UINT swp = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS;
+    if (auto* w = GetDlgItem(IDC_BROWSE_ZIPPATH)) {
+        hdwp = ::DeferWindowPos(hdwp, w->GetSafeHwnd(), nullptr,
+                                margin, margin, cx - 2 * margin, top_label_h,
+                                swp);
+    }
+    if (auto* w = GetDlgItem(IDC_BROWSE_LIST)) {
+        hdwp = ::DeferWindowPos(hdwp, w->GetSafeHwnd(), nullptr,
+                                margin, list_top, cx - 2 * margin, list_h,
+                                swp);
+    }
+    if (auto* w = GetDlgItem(IDC_BROWSE_EXTRACT_ALL)) {
+        hdwp = ::DeferWindowPos(hdwp, w->GetSafeHwnd(), nullptr,
+                                extract_x, btn_y, btn_w_extract, btn_h,
+                                swp);
+    }
+    if (auto* w = GetDlgItem(IDCANCEL)) {
+        hdwp = ::DeferWindowPos(hdwp, w->GetSafeHwnd(), nullptr,
+                                close_x, btn_y, btn_w_close, btn_h,
+                                swp);
+    }
+    ::EndDeferWindowPos(hdwp);
+
+    auto repaint_btn = [](CWnd* w) {
+        if (!w) return;
+        ::RedrawWindow(w->GetSafeHwnd(), nullptr, nullptr,
+                       RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_UPDATENOW);
+    };
+    repaint_btn(GetDlgItem(IDC_BROWSE_EXTRACT_ALL));
+    repaint_btn(GetDlgItem(IDCANCEL));
+
+    // Repaint the dialog backdrop so the 1-px listview-pane frame drawn
+    // in OnPaint follows the listview to its new bounds. WS_CLIPCHILDREN
+    // clips the listview itself out of the dialog's paint region, so
+    // this only redraws the strip around the listview.
+    ::InvalidateRect(GetSafeHwnd(), nullptr, FALSE);
+    ::UpdateWindow(GetSafeHwnd());
+}
+
+void CArchiveBrowserDialog::OnPaint() {
+    CPaintDC dc(this);
+
+    // After CDialogEx fills the backdrop (system COLOR_3DFACE in light,
+    // dark brush via OnCtlColor in dark), draw a 1px outline around the
+    // listview's bounds in light mode so the white listview pane has a
+    // defined edge against the gray dialog backdrop. Without this the
+    // listview's white body bleeds into nothing — the user can't tell
+    // where the pane ends and the dialog begins. Dark mode doesn't need
+    // this: the body→backdrop color tier (38 vs 32) already provides
+    // the boundary cue.
+    CDialogEx::OnPaint();
+    if (openzip::dark_theme::IsDarkModeActive()) return;
+    if (!list_.GetSafeHwnd()) return;
+
+    RECT lr;
+    list_.GetWindowRect(&lr);
+    ::ScreenToClient(GetSafeHwnd(),
+                     reinterpret_cast<LPPOINT>(&lr.left));
+    ::ScreenToClient(GetSafeHwnd(),
+                     reinterpret_cast<LPPOINT>(&lr.right));
+
+    HPEN pen     = ::CreatePen(PS_SOLID, 1, RGB(213, 213, 213));
+    HPEN old_pen = static_cast<HPEN>(::SelectObject(dc.GetSafeHdc(), pen));
+    HBRUSH old_br = static_cast<HBRUSH>(
+        ::SelectObject(dc.GetSafeHdc(), ::GetStockObject(NULL_BRUSH)));
+    ::Rectangle(dc.GetSafeHdc(), lr.left - 1, lr.top - 1,
+                                 lr.right + 1, lr.bottom + 1);
+    ::SelectObject(dc.GetSafeHdc(), old_pen);
+    ::SelectObject(dc.GetSafeHdc(), old_br);
+    ::DeleteObject(pen);
 }
 
 HBRUSH CArchiveBrowserDialog::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor) {
