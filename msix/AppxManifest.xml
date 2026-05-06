@@ -12,7 +12,7 @@
 
   <Identity Name="Hyung-ChulLee.OpenZip"
             Publisher="CN=F654AA56-4E26-4CE5-B9F5-949930D6F0EE"
-            Version="0.5.0.0"
+            Version="0.5.1.0"
             ProcessorArchitecture="x64" />
 
   <Properties>
@@ -82,14 +82,26 @@
         <!-- COM server for shell extension -->
         <com:Extension Category="windows.comServer">
           <com:ComServer>
-            <!-- Modern shell ext (out-of-process surrogate) -->
+            <!-- Modern shell ext (out-of-process surrogate). Win11 already wraps
+                 a package's verbs under the package DisplayName, so we register
+                 the leaf verbs directly — no parent flyout — to avoid a second
+                 "OpenZip → OpenZip" hop in the modern menu. -->
             <com:SurrogateServer DisplayName="OpenZip Shell Extension">
-              <!-- Extract parent CLSID (existing) -->
-              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C"
+              <!-- Extract leaves -->
+              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0D"
                          Path="OpenZipShellExt.dll"
                          ThreadingModel="STA" />
-              <!-- Compress parent CLSID (Phase 4) -->
-              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00"
+              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0E"
+                         Path="OpenZipShellExt.dll"
+                         ThreadingModel="STA" />
+              <!-- Compress leaves -->
+              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B01"
+                         Path="OpenZipShellExt.dll"
+                         ThreadingModel="STA" />
+              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B02"
+                         Path="OpenZipShellExt.dll"
+                         ThreadingModel="STA" />
+              <com:Class Id="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B03"
                          Path="OpenZipShellExt.dll"
                          ThreadingModel="STA" />
             </com:SurrogateServer>
@@ -104,48 +116,68 @@
           </com:ComServer>
         </com:Extension>
 
-        <!-- Modern Win11 context menu verbs -->
+        <!-- Modern Win11 context menu verbs. Each verb is a leaf (no parent
+             flyout) so the modern menu shows the package's auto-grouped
+             "OpenZip" entry only once, with the actual commands directly inside. -->
         <desktop4:Extension Category="windows.fileExplorerContextMenus">
           <desktop4:FileExplorerContextMenus>
-            <!-- .zip files: extract and compress -->
+            <!-- .zip files: extract leaves (compress is provided by the "*" binding) -->
             <desktop5:ItemType Type=".zip">
-              <desktop5:Verb Id="OpenZipExtract"
-                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
-              <desktop5:Verb Id="OpenZipCompress"
-                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00" />
+              <desktop5:Verb Id="OpenZipExtractHere"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0D" />
+              <desktop5:Verb Id="OpenZipExtractFolder"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0E" />
             </desktop5:ItemType>
-            <!-- gzip family: extract verb only (gz is single-stream; recompress
-                 a single file via the generic "*" Compress binding below). -->
+            <!-- gzip family: extract leaves only (gz is single-stream). -->
             <desktop5:ItemType Type=".gz">
-              <desktop5:Verb Id="OpenZipExtract"
-                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+              <desktop5:Verb Id="OpenZipExtractHere"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0D" />
+              <desktop5:Verb Id="OpenZipExtractFolder"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0E" />
             </desktop5:ItemType>
             <desktop5:ItemType Type=".tgz">
-              <desktop5:Verb Id="OpenZipExtract"
-                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+              <desktop5:Verb Id="OpenZipExtractHere"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0D" />
+              <desktop5:Verb Id="OpenZipExtractFolder"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0E" />
             </desktop5:ItemType>
             <desktop5:ItemType Type=".taz">
-              <desktop5:Verb Id="OpenZipExtract"
-                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+              <desktop5:Verb Id="OpenZipExtractHere"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0D" />
+              <desktop5:Verb Id="OpenZipExtractFolder"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0E" />
             </desktop5:ItemType>
-            <!-- xz family: extract verb only (single-stream). -->
+            <!-- xz family: extract leaves only (single-stream). -->
             <desktop5:ItemType Type=".xz">
-              <desktop5:Verb Id="OpenZipExtract"
-                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+              <desktop5:Verb Id="OpenZipExtractHere"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0D" />
+              <desktop5:Verb Id="OpenZipExtractFolder"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0E" />
             </desktop5:ItemType>
             <desktop5:ItemType Type=".txz">
-              <desktop5:Verb Id="OpenZipExtract"
-                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0C" />
+              <desktop5:Verb Id="OpenZipExtractHere"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0D" />
+              <desktop5:Verb Id="OpenZipExtractFolder"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1A0E" />
             </desktop5:ItemType>
-            <!-- Any file: compress -->
+            <!-- Any file: compress leaves. GetState hides them when a single
+                 archive is selected so extract verbs alone show in that case. -->
             <desktop5:ItemType Type="*">
-              <desktop5:Verb Id="OpenZipCompress"
-                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00" />
+              <desktop5:Verb Id="OpenZipCompressBundle"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B01" />
+              <desktop5:Verb Id="OpenZipCompressEach"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B02" />
+              <desktop5:Verb Id="OpenZipCompressPrompt"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B03" />
             </desktop5:ItemType>
-            <!-- Folders: compress -->
+            <!-- Folders: compress leaves -->
             <desktop5:ItemType Type="Directory">
-              <desktop5:Verb Id="OpenZipCompress"
-                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B00" />
+              <desktop5:Verb Id="OpenZipCompressBundle"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B01" />
+              <desktop5:Verb Id="OpenZipCompressEach"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B02" />
+              <desktop5:Verb Id="OpenZipCompressPrompt"
+                             Clsid="A8F3C7E4-1B2D-4F5E-9C8A-3B6D2E5F1B03" />
             </desktop5:ItemType>
           </desktop4:FileExplorerContextMenus>
         </desktop4:Extension>
