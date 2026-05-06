@@ -61,6 +61,9 @@
 #define IDC_COMPRESS_PROGRESS           2021
 #define IDC_COMPRESS_QUEUE              2022
 #define IDC_COMPRESS_CANCEL             2023
+#define IDC_COMPRESS_PERCENT            2024
+#define IDC_COMPRESS_COUNT              2025
+#define IDC_COMPRESS_ETA                2026
 
 // ─── String table — UI text used at runtime via LoadString ──────
 #define IDS_DIALOG_EXTRACT_TITLE        4001
@@ -101,6 +104,9 @@
 #define IDS_LABEL_COMPRESS_PASSWORD_CFM 4070
 #define IDS_CHECK_COMPRESS_SHOW_PW      4071
 #define IDS_LABEL_COMPRESS_READY        4072
+#define IDS_LABEL_COMPRESS_ETA          4073   // "ETA %s" / "남은 시간 %s"
+#define IDS_LABEL_COMPRESS_ETA_UNKNOWN  4074   // placeholder while no estimate yet
+#define IDS_LABEL_COMPRESS_FILES        4075   // "%zu / %zu files" / "%zu / %zu 파일"
 
 // Archive browser dialog (Phase 9)
 #define IDD_ARCHIVE_BROWSER             142

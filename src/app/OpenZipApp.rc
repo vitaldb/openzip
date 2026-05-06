@@ -80,7 +80,10 @@ BEGIN
     LTEXT   "Ready...", IDC_COMPRESS_CURRENT, 16, 18, 328, 24, SS_NOPREFIX | SS_PATHELLIPSIS
     CONTROL "",         IDC_COMPRESS_PROGRESS, "msctls_progress32",
                         PBS_SMOOTH | WS_BORDER, 16, 60, 328, 12
-    LTEXT   "",         IDC_COMPRESS_QUEUE, 16, 80, 200, 12
+    LTEXT   "",         IDC_COMPRESS_PERCENT,  16, 78,  54, 10
+    LTEXT   "",         IDC_COMPRESS_COUNT,    72, 78, 138, 10, SS_CENTER
+    LTEXT   "",         IDC_COMPRESS_ETA,     212, 78, 132, 10, SS_RIGHT
+    LTEXT   "",         IDC_COMPRESS_QUEUE,    16, 108, 200, 10
     PUSHBUTTON "Cancel", IDC_COMPRESS_CANCEL, 284, 104, 60, 16
 END
 
@@ -199,6 +202,9 @@ BEGIN
     IDS_LABEL_COMPRESS_PASSWORD_CFM "Confirm"
     IDS_CHECK_COMPRESS_SHOW_PW      "Show"
     IDS_LABEL_COMPRESS_READY        "Ready..."
+    IDS_LABEL_COMPRESS_ETA          "ETA %s"
+    IDS_LABEL_COMPRESS_ETA_UNKNOWN  "ETA --:--"
+    IDS_LABEL_COMPRESS_FILES        "%u / %u files"
 
     IDS_DIALOG_BROWSE_TITLE         "OpenZip — Archive Contents"
     IDS_LABEL_BROWSE_NAME           "Name"
@@ -261,6 +267,9 @@ BEGIN
     IDS_LABEL_COMPRESS_PASSWORD_CFM "다시 입력"
     IDS_CHECK_COMPRESS_SHOW_PW      "표시"
     IDS_LABEL_COMPRESS_READY        "준비 중..."
+    IDS_LABEL_COMPRESS_ETA          "남은 시간 %s"
+    IDS_LABEL_COMPRESS_ETA_UNKNOWN  "남은 시간 --:--"
+    IDS_LABEL_COMPRESS_FILES        "%u / %u 파일"
 
     IDS_DIALOG_BROWSE_TITLE         "OpenZip — 압축 파일 내용"
     IDS_LABEL_BROWSE_NAME           "이름"

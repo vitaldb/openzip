@@ -5,6 +5,31 @@
 #include <memory>
 #include <new>
 
+namespace {
+
+// Format an estimated-remaining-time in milliseconds as either "M:SS" or
+// "H:MM:SS" (drop the hours field below 1 hour). Used purely for display.
+CString FormatEtaTime(uint64_t ms) {
+    uint64_t secs = (ms + 500) / 1000;
+    uint64_t h = secs / 3600;
+    uint64_t m = (secs / 60) % 60;
+    uint64_t s = secs % 60;
+    CString out;
+    if (h > 0) {
+        out.Format(L"%llu:%02llu:%02llu",
+                   static_cast<unsigned long long>(h),
+                   static_cast<unsigned long long>(m),
+                   static_cast<unsigned long long>(s));
+    } else {
+        out.Format(L"%llu:%02llu",
+                   static_cast<unsigned long long>(m),
+                   static_cast<unsigned long long>(s));
+    }
+    return out;
+}
+
+}  // namespace
+
 // Custom window messages for worker → UI thread communication.
 static constexpr UINT WM_OZ_COMP_ENTRY    = WM_USER + 200;
 static constexpr UINT WM_OZ_COMP_BYTES    = WM_USER + 201;
@@ -89,6 +114,12 @@ BOOL CCompressDialog::OnInitDialog() {
         pb->SetPos(0);
     }
 
+    // Initial label state — bar at 0%, no ETA available yet.
+    SetDlgItemText(IDC_COMPRESS_PERCENT, L"0%");
+    SetDlgItemText(IDC_COMPRESS_COUNT,   L"");
+    s.LoadString(IDS_LABEL_COMPRESS_ETA_UNKNOWN);
+    SetDlgItemText(IDC_COMPRESS_ETA, s);
+
     if (batch_total > 1) {
         s.Format(L"%d / %d", batch_index + 1, batch_total);
         SetDlgItemText(IDC_COMPRESS_QUEUE, s);
@@ -118,15 +149,73 @@ void CCompressDialog::OnCancel() {
 LRESULT CCompressDialog::OnEntryStart(WPARAM, LPARAM lp) {
     std::unique_ptr<EntryMsg> m(reinterpret_cast<EntryMsg*>(lp));
     SetDlgItemText(IDC_COMPRESS_CURRENT, m->rel.c_str());
+
+    entry_index_ = m->i;
+    entry_total_ = m->total;
+
+    // Refresh "N / M files" alongside the path so it's never stale on small entries.
+    CString fmt;
+    fmt.LoadString(IDS_LABEL_COMPRESS_FILES);
+    CString count;
+    count.Format(fmt,
+                 static_cast<unsigned int>(entry_index_ + 1),
+                 static_cast<unsigned int>(entry_total_));
+    SetDlgItemText(IDC_COMPRESS_COUNT, count);
     return 0;
 }
 
 LRESULT CCompressDialog::OnBytes(WPARAM, LPARAM lp) {
     std::unique_ptr<BytesMsg> m(reinterpret_cast<BytesMsg*>(lp));
+
+    DWORD now = ::GetTickCount();
+    if (start_tick_ == 0) start_tick_ = now;
+
+    // Bar moves at high resolution; the worker can post much faster than the
+    // UI can repaint, so cap bar updates to ~60Hz.
     if (m->total > 0) {
         int v = static_cast<int>((m->done * 1000) / m->total);
         if (auto* pb = static_cast<CProgressCtrl*>(GetDlgItem(IDC_COMPRESS_PROGRESS)))
             pb->SetPos(v);
+    }
+
+    // Text labels (percent / ETA) refresh at most ~4×/sec to avoid flicker
+    // and to give the ETA estimator enough samples between recomputes.
+    bool finished = (m->total > 0 && m->done >= m->total);
+    if (!finished && now - last_label_tick_ < 250) return 0;
+    last_label_tick_ = now;
+
+    if (m->total > 0) {
+        double promille = static_cast<double>(m->done * 1000) / static_cast<double>(m->total);
+        CString pct;
+        pct.Format(L"%.1f%%", promille / 10.0);
+        SetDlgItemText(IDC_COMPRESS_PERCENT, pct);
+
+        // ETA: linear extrapolation from total elapsed throughput. Suppress
+        // the estimate until we have ≥ 750 ms of data and ≥ 0.5 % progress —
+        // earlier samples are dominated by setup overhead and would produce
+        // wild numbers (hours of "ETA" on a 2-second job).
+        DWORD elapsed = now - start_tick_;
+        CString eta;
+        bool have_estimate = false;
+        uint64_t eta_ms = 0;
+        if (finished) {
+            have_estimate = true;  // eta_ms stays 0 → "0:00"
+        } else if (m->done > 0 && elapsed >= 750 && promille >= 5.0) {
+            uint64_t remaining_bytes = m->total - m->done;
+            eta_ms = static_cast<uint64_t>(elapsed) * remaining_bytes / m->done;
+            // Clamp absurd values so we never paint "ETA 999:59:59".
+            constexpr uint64_t kEtaCapMs = 24ull * 60ull * 60ull * 1000ull;
+            if (eta_ms > kEtaCapMs) eta_ms = kEtaCapMs;
+            have_estimate = true;
+        }
+        if (have_estimate) {
+            CString fmt;
+            fmt.LoadString(IDS_LABEL_COMPRESS_ETA);
+            eta.Format(fmt, static_cast<LPCWSTR>(FormatEtaTime(eta_ms)));
+        } else {
+            eta.LoadString(IDS_LABEL_COMPRESS_ETA_UNKNOWN);
+        }
+        SetDlgItemText(IDC_COMPRESS_ETA, eta);
     }
     return 0;
 }

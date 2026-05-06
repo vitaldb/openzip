@@ -46,4 +46,10 @@ private:
     std::thread worker_;
     std::atomic<bool> cancel_{false};
     openzip::Compressor::Result final_result_ = openzip::Compressor::Result::Success;
+
+    // Progress UI state (UI thread only).
+    DWORD start_tick_ = 0;          // first OnBytes wall-clock; anchor for ETA
+    DWORD last_label_tick_ = 0;     // last time the % / count / ETA strings were repainted
+    size_t entry_index_ = 0;        // last entry index reported by OnEntryStart (0-based)
+    size_t entry_total_ = 0;        // last entry total reported by OnEntryStart
 };
