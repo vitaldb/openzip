@@ -157,8 +157,9 @@ public:
 
 - **Atomic output** — write to `<output_zip>.partial`, rename on success, delete on failure or cancel. No half-written `.zip` left behind.
 - **Relative paths inside the archive** — entries are stored relative to each source's parent.
-  - Single folder `MyDocs\` selected → archive entries `MyDocs/file1.txt`, `MyDocs/sub/file2.txt`, …
+  - Single folder `MyDocs\` selected → archive entries `file1.txt`, `sub/file2.txt`, … (the folder's own name is dropped so `MyDocs.zip` doesn't double-nest as `MyDocs/MyDocs/…`). The same rule applies to each-mode batches, which compress one folder per zip.
   - 5 sibling files selected (e.g., `a.txt`, `b.txt`, … inside `Documents\`) → 5 flat entries `a.txt`, `b.txt`, … (no enclosing folder).
+  - Multiple top-level sources (e.g., `MyDocs\` + `Photos\`) → entries keep the per-source basename prefix (`MyDocs/...`, `Photos/...`) so same-named files at the roots don't collide.
   - This is independent of the *output archive name*, which is determined by the menu verb (see §3 #7 for the multi-selection naming rule).
 - **Folder recursion** — symbolic links are NOT followed (matches `Extractor`'s symlink refusal on the read side).
 - **Encryption** — when `password` is non-empty, every entry is encrypted with WinZip-style AES-256 (`MZ_AES_ENCRYPTION_MODE_256`). ZipCrypto is read-only for OpenZip (we extract it, we don't create it) — its weakness is well known.

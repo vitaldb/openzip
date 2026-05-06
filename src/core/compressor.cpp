@@ -43,7 +43,14 @@ struct FlatEntry {
     std::wstring rel_in_zip;   // forward-slash-separated, no leading slash
 };
 
-void Flatten(const fs::path& src, std::vector<FlatEntry>& out) {
+// strip_dir_base: when src is a directory, omit the directory's own name from
+// the in-zip path so its children land at the archive root. Used for the
+// single-folder right-click case (and for each-mode batches, which compress
+// one folder per zip): a zip of "MyDocs/" should contain "a.txt", "sub/b.txt"
+// at the root, not "MyDocs/a.txt", "MyDocs/sub/b.txt". Multi-source bundles
+// keep the prefix (collisions, plus the user picked the folder name on purpose).
+// Single-file sources are unaffected — the basename is always kept.
+void Flatten(const fs::path& src, std::vector<FlatEntry>& out, bool strip_dir_base) {
     if (!fs::exists(src)) return;
     // Fix E: skip top-level symlinks (matches the in-recursion skip below)
     if (fs::is_symlink(src)) return;
@@ -59,7 +66,8 @@ void Flatten(const fs::path& src, std::vector<FlatEntry>& out) {
             // Skip symlinks (matches Extractor's symlink refusal)
             if (it->is_symlink()) { it.disable_recursion_pending(); continue; }
             if (!it->is_regular_file()) continue;
-            std::wstring rel = base + L"/";
+            std::wstring rel;
+            if (!strip_dir_base) rel = base + L"/";
             std::wstring tail = fs::relative(it->path(), src).wstring();
             for (auto& ch : tail) if (ch == L'\\') ch = L'/';
             rel += tail;
@@ -230,6 +238,13 @@ Compressor::Result Compressor::Compress(const std::vector<fs::path>& sources,
     }
 
     // --- Flatten sources (Task 1.3: folder recursion) ---
+    // When the user compresses a single folder (right-click → Compress, or any
+    // each-mode batch entry), the folder's own name is dropped from in-zip
+    // paths so its contents appear at the archive root. With multiple sources
+    // we keep the per-source basename to disambiguate top-level collisions.
+    std::error_code dir_ec;
+    const bool flatten_single_dir =
+        sources.size() == 1 && fs::is_directory(sources.front(), dir_ec);
     std::vector<FlatEntry> flat;
     for (const auto& s : sources) {
         if (!fs::exists(s)) {
@@ -237,7 +252,7 @@ Compressor::Result Compressor::Compress(const std::vector<fs::path>& sources,
             return Result::SourceMissing;
             // wg + pg destructors clean up writer and partial
         }
-        Flatten(s, flat);
+        Flatten(s, flat, flatten_single_dir);
     }
 
     // --- Task 1.9: Pre-sum total bytes for progress reporting ---

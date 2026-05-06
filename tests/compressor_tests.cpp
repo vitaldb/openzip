@@ -74,9 +74,11 @@ TEST(Compressor, SingleFileRoundtrip) {
 }
 
 // ---------------------------------------------------------------------------
-// Task 1.3
+// Task 1.3 — single-folder source: contents land at the archive root.
+// (Right-click on one folder, or each-mode batch entry, must NOT nest the
+// folder inside itself in the zip.)
 // ---------------------------------------------------------------------------
-TEST(Compressor, FolderRecursive) {
+TEST(Compressor, SingleFolderFlattensToRoot) {
     openzip::test::TempDir td;
     fs::path root = td / L"MyDocs";
     openzip::test::WriteFileBytes(root / L"a.txt", {'a'});
@@ -92,8 +94,31 @@ TEST(Compressor, FolderRecursive) {
     for (auto& e : entries) names.push_back(e.name);
     std::sort(names.begin(), names.end());
     ASSERT_EQ(names.size(), 2u);
-    EXPECT_EQ(names[0], L"MyDocs/a.txt");
-    EXPECT_EQ(names[1], L"MyDocs/sub/b.txt");
+    EXPECT_EQ(names[0], L"a.txt");
+    EXPECT_EQ(names[1], L"sub/b.txt");
+}
+
+// Multi-source bundle keeps each top-level basename as a prefix — otherwise
+// two sibling folders with same-named files would collide at the zip root.
+TEST(Compressor, MultipleFoldersKeepBasenamePrefix) {
+    openzip::test::TempDir td;
+    fs::path one = td / L"OneDir";
+    fs::path two = td / L"TwoDir";
+    openzip::test::WriteFileBytes(one / L"a.txt", {'a'});
+    openzip::test::WriteFileBytes(two / L"b.txt", {'b'});
+
+    fs::path zip = td / L"out.zip";
+    NullCallback cb;
+    auto r = openzip::Compressor::Compress({one, two}, zip, cb);
+    ASSERT_EQ(r, openzip::Compressor::Result::Success);
+
+    auto entries = openzip::Extractor::ListEntries(zip);
+    std::vector<std::wstring> names;
+    for (auto& e : entries) names.push_back(e.name);
+    std::sort(names.begin(), names.end());
+    ASSERT_EQ(names.size(), 2u);
+    EXPECT_EQ(names[0], L"OneDir/a.txt");
+    EXPECT_EQ(names[1], L"TwoDir/b.txt");
 }
 
 // ---------------------------------------------------------------------------
