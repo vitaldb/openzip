@@ -732,8 +732,18 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     if (!ppv) return E_POINTER;
     *ppv = nullptr;
     CmdKind kind;
-    if      (clsid == kCLSID_OpenZipCommand) kind = CmdKind::Parent;
-    else if (clsid == kCLSID_CompressParent) kind = CmdKind::CompressParent;
+    // Leaf verbs registered directly in AppxManifest (Win11 modern menu shows
+    // these flat under the package's auto-generated "OpenZip" group, so a
+    // parent flyout would just add a redundant second hop).
+    if      (clsid == kCLSID_ExtractHere)     kind = CmdKind::Here;
+    else if (clsid == kCLSID_ExtractToFolder) kind = CmdKind::Folder;
+    else if (clsid == kCLSID_CompressBundle)  kind = CmdKind::CompressBundle;
+    else if (clsid == kCLSID_CompressEach)    kind = CmdKind::CompressEach;
+    else if (clsid == kCLSID_CompressPrompt)  kind = CmdKind::CompressPrompt;
+    // Legacy parent CLSIDs kept for any cached registrations on upgrade —
+    // never declared as verbs in the current manifest.
+    else if (clsid == kCLSID_OpenZipCommand)  kind = CmdKind::Parent;
+    else if (clsid == kCLSID_CompressParent)  kind = CmdKind::CompressParent;
     else {
         Log(L"  unknown CLSID — returning CLASS_E_CLASSNOTAVAILABLE");
         return CLASS_E_CLASSNOTAVAILABLE;
